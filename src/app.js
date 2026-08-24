@@ -71,9 +71,6 @@ class TitanBot extends Client {
       startupLog('Starting web server...');
       this.startWebServer();
 
-      startupLog('Loading commands...');
-      await loadCommands(this);
-      startupLog(`Commands loaded: ${this.commands.size}`);
 
       startupLog('Loading handlers...');
       await this.loadHandlers();
