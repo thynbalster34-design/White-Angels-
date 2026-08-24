@@ -25,31 +25,63 @@ export default {
                 title: '🤍 WHITE ANGELS',
                 description: `# 📖 Onze Backstory
 
-**Hier komt jullie verhaal.**
-White Angels begon niet in RLRP, maar in Rusland. De groep bestond uit een aantal boys die elkaar al jaren kenden en samen waren opgegroeid. Ze hadden allemaal hun eigen problemen, maar één ding hadden ze gemeen, ze vertrouwden alleen elkaar.
+*description: `# 🤍 WHITE ANGELS
+### *One group. One family. One goal.*
 
-Door problemen in Rusland moesten ze uiteindelijk vluchten. Ze konden niet zomaar blijven en besloten daarom alles achter te laten en naar RealLife te vertrekken. Ze kwamen daar aan zonder veel geld en zonder mensen die ze konden vertrouwen.
+━━━━━━━━━━━━━━━━━━━━
 
-In het begin hielden ze zich vooral rustig. Ze probeerden werk te vinden en een nieuw leven op te bouwen. Toch kwamen ze er snel achter dat het leven in RealLife niet zo makkelijk was als ze hadden gedacht. Geld was moeilijk te verdienen en de mensen die ze ontmoetten waren niet altijd te vertrouwen.
+## 🇷🇺 HET BEGIN
 
-Eén van de oprichters, Lolo Bobbers, begon daarom oude contacten te gebruiken om aan geld te komen. Wat eerst een paar kleine klusjes waren, werd langzaam steeds groter. De groep begon steeds meer mensen te leren kennen en kreeg daardoor ook meer invloed.
+White Angels begon niet in RLRP, maar in Rusland.
 
-Na een tijdje werd White Angels officieel opgericht. De naam kwam voort uit hun verleden. Voor de buitenwereld waren ze misschien "de engelen" die uit Rusland waren gekomen, maar achter die naam zat een groep die alles had moeten achterlaten om opnieuw te beginnen.
+De groep bestond uit een aantal boys die elkaar al jaren kenden en samen waren opgegroeid. Ze hadden allemaal hun eigen problemen, maar één ding hadden ze gemeen: **ze vertrouwden alleen elkaar.**
 
-Door de jaren heen werd de groep steeds hechter. Binnen White Angels gelden daarom een paar belangrijke regels: loyaliteit, respect en vertrouwen. Wie bij de groep hoort, wordt gezien als familie. Verraad wordt dan ook absoluut niet geaccepteerd.
+Door problemen in Rusland moesten ze uiteindelijk vluchten. Ze konden niet zomaar blijven en besloten daarom alles achter te laten en naar RealLife te vertrekken.
 
-Nu willen de White Angels hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen. Ze willen niet zomaar een groep zijn die tijdelijk bestaat, maar een elite organisatie die langzaam groter en machtiger wordt.
+Ze kwamen daar aan zonder veel geld en zonder mensen die ze konden vertrouwen.
+
+## 🌆 EEN NIEUW BEGIN
+
+In het begin hielden ze zich vooral rustig. Ze probeerden werk te vinden en een nieuw leven op te bouwen.
+
+Toch kwamen ze er snel achter dat het leven in RealLife niet zo makkelijk was als ze hadden gedacht. Geld was moeilijk te verdienen en de mensen die ze ontmoetten waren niet altijd te vertrouwen.
+
+Eén van de oprichters, **Lolo Bobbers**, begon daarom oude contacten te gebruiken om aan geld te komen.
+
+Wat eerst een paar kleine klusjes waren, werd langzaam steeds groter. De groep begon steeds meer mensen te leren kennen en kreeg daardoor ook steeds meer invloed.
+
+## 🤍 DE GEBOORTE VAN WHITE ANGELS
+
+Na een tijdje werd **White Angels officieel opgericht.**
+
+De naam kwam voort uit hun verleden. Voor de buitenwereld waren ze misschien *"de engelen"* die uit Rusland waren gekomen, maar achter die naam zat een groep die alles had moeten achterlaten om opnieuw te beginnen.
+
+Door de jaren heen werd de groep steeds hechter.
+
+Binnen White Angels gelden daarom drie belangrijke waarden:
+
+**LOYALITEIT • RESPECT • VERTROUWEN**
+
+Wie bij de groep hoort, wordt gezien als familie.
+
+**Verraad wordt absoluut niet geaccepteerd.**
+
+## 🔥 DE TOEKOMST
+
+Nu willen de White Angels hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen.
+
+Ze willen niet zomaar een groep zijn die tijdelijk bestaat, maar een **elite organisatie** die langzaam groter en machtiger wordt.
 
 Hun doel is om vanuit het niets iets op te bouwen waar mensen in RealLife uiteindelijk rekening mee moeten houden.
-Ze zijn Rusland ontvlucht om te overleven. In RealLife willen ze ervoor zorgen dat ze nooit meer hoeven te vluchten.
 
-White Angels — één groep, één familie, één doel
+Ze zijn Rusland ontvlucht om te overleven.
 
-Schrijf hier de volledige geschiedenis van de White Angels.
+**In RealLife willen ze ervoor zorgen dat ze nooit meer hoeven te vluchten.**
 
-Je kunt hier meerdere alinea's gebruiken en belangrijke stukken **dikgedrukt** maken.
+━━━━━━━━━━━━━━━━━━━━
 
----
+### 🤍 WHITE ANGELS
+**Één groep. Één familie. Één doel.**`,
 
 🤍 **WHITE ANGELS**
 *Our story. Our family. Our legacy.*`,
