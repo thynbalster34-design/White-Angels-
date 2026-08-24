@@ -1,31 +1,6 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { createEmbed } from '../../utils/embeds.js';
-import { logger } from '../../utils/logger.js';
-import { InteractionHelper } from '../../utils/interactionHelper.js';
-
-export default {
-    data: new SlashCommandBuilder()
-        .setName('backstory')
-        .setDescription('Plaats de White Angels backstory'),
-
-    async execute(interaction) {
-        const deferSuccess = await InteractionHelper.safeDefer(interaction);
-
-        if (!deferSuccess) {
-            logger.warn('Backstory interaction defer failed', {
-                userId: interaction.user.id,
-                guildId: interaction.guildId,
-                commandName: 'backstory'
-            });
-            return;
-        }
-
-        try {
-            const embed = createEmbed({
-                title: '🤍 WHITE ANGELS',
-                description: `# 📖 Onze Backstory
-
-*description: `# 🤍 WHITE ANGELS
+const embed = createEmbed({
+    title: '🤍 WHITE ANGELS',
+    description: `# 📖 WHITE ANGELS
 ### *One group. One family. One goal.*
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -82,36 +57,5 @@ Ze zijn Rusland ontvlucht om te overleven.
 
 ### 🤍 WHITE ANGELS
 **Één groep. Één familie. Één doel.**`,
-
-🤍 **WHITE ANGELS**
-*Our story. Our family. Our legacy.*`,
-                color: '#FFFFFF',
-            });
-
-            embed.setFooter({
-                text: 'White Angels • Backstory',
-                iconURL: interaction.client.user.displayAvatarURL(),
-            });
-
-            embed.setTimestamp();
-
-            // Plaats de backstory in het kanaal
-            await interaction.channel.send({
-                embeds: [embed],
-            });
-
-            // Bevestiging alleen zichtbaar voor degene die het command gebruikt
-            await InteractionHelper.safeEditReply(interaction, {
-                content: '✅ De White Angels backstory is geplaatst.',
-            });
-
-        } catch (error) {
-            logger.error('Backstory command error:', error);
-
-            await InteractionHelper.safeEditReply(interaction, {
-                content: '❌ Er ging iets mis bij het plaatsen van de backstory.',
-                flags: MessageFlags.Ephemeral,
-            }).catch(() => {});
-        }
-    },
-};
+    color: '#FFFFFF',
+});
