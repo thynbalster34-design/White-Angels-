@@ -1,6 +1,24 @@
-const embed = createEmbed({
-    title: '🤍 WHITE ANGELS',
-    description: `# 📖 WHITE ANGELS
+import { SlashCommandBuilder } from 'discord.js';
+import { createEmbed } from '../../utils/embeds.js';
+import { logger } from '../../utils/logger.js';
+import { InteractionHelper } from '../../utils/interactionHelper.js';
+
+export default {
+    data: new SlashCommandBuilder()
+        .setName('backstory')
+        .setDescription('Plaats de White Angels backstory'),
+
+    async execute(interaction) {
+        try {
+            const deferSuccess = await InteractionHelper.safeDefer(interaction);
+
+            if (!deferSuccess) {
+                return;
+            }
+
+            const embed = createEmbed({
+                title: '🤍 WHITE ANGELS',
+                description: `# 📖 WHITE ANGELS
 ### *One group. One family. One goal.*
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -57,5 +75,34 @@ Ze zijn Rusland ontvlucht om te overleven.
 
 ### 🤍 WHITE ANGELS
 **Één groep. Één familie. Één doel.**`,
-    color: '#FFFFFF',
-});
+                color: '#FFFFFF',
+            });
+
+            embed.setFooter({
+                text: 'White Angels • Backstory',
+                iconURL: interaction.client.user.displayAvatarURL(),
+            });
+
+            embed.setTimestamp();
+
+            await interaction.channel.send({
+                embeds: [embed],
+            });
+
+            await InteractionHelper.safeEditReply(interaction, {
+                content: '✅ De White Angels backstory is geplaatst.',
+            });
+
+        } catch (error) {
+            logger.error('Backstory command error:', error);
+
+            try {
+                await InteractionHelper.safeEditReply(interaction, {
+                    content: '❌ Er ging iets mis bij het plaatsen van de backstory.',
+                });
+            } catch (replyError) {
+                logger.error('Failed to send backstory error:', replyError);
+            }
+        }
+    },
+};
