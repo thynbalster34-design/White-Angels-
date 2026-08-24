@@ -1,24 +1,9 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName('backstory')
-        .setDescription('Plaats de White Angels backstory'),
-
-    async execute(interaction) {
-        try {
-            const deferSuccess = await InteractionHelper.safeDefer(interaction);
-
-            if (!deferSuccess) {
-                return;
-            }
-
-            const embed = createEmbed({
-                title: '🤍 WHITE ANGELS',
-                description: `# 📖 WHITE ANGELS
+const BACKSTORY = `# 🤍 WHITE ANGELS
 ### *One group. One family. One goal.*
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -74,7 +59,27 @@ Ze zijn Rusland ontvlucht om te overleven.
 ━━━━━━━━━━━━━━━━━━━━
 
 ### 🤍 WHITE ANGELS
-**Één groep. Één familie. Één doel.**`,
+**Één groep. Één familie. Één doel.**`;
+
+export default {
+    data: new SlashCommandBuilder()
+        .setName('backstory')
+        .setDescription('Plaats de White Angels backstory')
+        .setDMPermission(false),
+
+    category: 'Core',
+
+    async execute(interaction) {
+        const deferSuccess = await InteractionHelper.safeDefer(interaction);
+
+        if (!deferSuccess) {
+            return;
+        }
+
+        try {
+            const embed = createEmbed({
+                title: '🤍 WHITE ANGELS',
+                description: BACKSTORY,
                 color: '#FFFFFF',
             });
 
@@ -96,13 +101,10 @@ Ze zijn Rusland ontvlucht om te overleven.
         } catch (error) {
             logger.error('Backstory command error:', error);
 
-            try {
-                await InteractionHelper.safeEditReply(interaction, {
-                    content: '❌ Er ging iets mis bij het plaatsen van de backstory.',
-                });
-            } catch (replyError) {
-                logger.error('Failed to send backstory error:', replyError);
-            }
+            await InteractionHelper.safeEditReply(interaction, {
+                content: '❌ Er ging iets mis bij het plaatsen van de backstory.',
+                flags: MessageFlags.Ephemeral,
+            }).catch(() => {});
         }
     },
 };
