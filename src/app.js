@@ -95,9 +95,9 @@ class TitanBot extends Client {
         `${this.selectMenus.size} menus, ` +
         `${this.modals.size} modals`;
 
-      startupLog(
-        `ONLINE ✅ | ${this.commands.size} commands loaded | ${handlerSummary} | Database: ${databaseMode}`
-      );
+     startupLog(
+  `ONLINE ✅ | ${handlerSummary} | Database: ${databaseMode}`
+);
 
       this.setupCronJobs();
 
