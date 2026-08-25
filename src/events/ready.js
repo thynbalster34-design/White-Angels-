@@ -24,6 +24,17 @@ import {
   startAllTicketPanelAutoUpdates,
 } from "../commands/Ticket/modules/ticket_dashboard.js";
 
+/* ============================================================
+   WHITE ANGELS ROLE
+   ============================================================ */
+
+const WHITE_ANGELS_ROLE_ID =
+  "1437696432340467786";
+
+/* ============================================================
+   CLIENT READY
+   ============================================================ */
+
 export default {
   name: Events.ClientReady,
   once: true,
@@ -51,7 +62,7 @@ export default {
       );
 
       /* ========================================================
-         ALLE SERVERLEDEN OPHALEN
+         SERVER MEMBERS CONTROLEREN
          ======================================================== */
 
       for (
@@ -59,11 +70,62 @@ export default {
         of client.guilds.cache.values()
       ) {
         try {
-          await guild.members.fetch();
+          /*
+           * Haal alle members op.
+           */
+          const members =
+            await guild.members.fetch();
 
           startupLog(
-            `✅ Members loaded for ${guild.name}: ${guild.members.cache.size}`
+            `✅ Members loaded for ${guild.name}: ${members.size}`
           );
+
+          /*
+           * Controleer of de White Angels rol bestaat.
+           */
+          const whiteAngelsRole =
+            guild.roles.cache.get(
+              WHITE_ANGELS_ROLE_ID
+            );
+
+          if (!whiteAngelsRole) {
+            startupLog(
+              `❌ White Angels role NOT FOUND: ${WHITE_ANGELS_ROLE_ID}`
+            );
+          } else {
+            startupLog(
+              `🤍 White Angels role found: ${whiteAngelsRole.name}`
+            );
+
+            /*
+             * Tel alle leden met de White Angels rol.
+             */
+            const whiteAngelsMembers =
+              members.filter(
+                member =>
+                  !member.user.bot &&
+                  member.roles.cache.has(
+                    WHITE_ANGELS_ROLE_ID
+                  )
+              );
+
+            startupLog(
+              `🤍 White Angels members detected: ${whiteAngelsMembers.size}`
+            );
+
+            /*
+             * Laat iedere gevonden member in de log zien.
+             */
+            for (
+              const member
+              of whiteAngelsMembers.values()
+            ) {
+              startupLog(
+                `🤍 White Angels member: ${member.user.tag} (${member.id})`
+              );
+            }
+          }
+
         } catch (error) {
           logger.error(
             `Failed to fetch members for ${guild.name}:`,
@@ -112,12 +174,7 @@ export default {
 
       /* ========================================================
          TICKET PANEL AUTO UPDATE
-         ========================================================
-
-         BELANGRIJK:
-         Eerst wordt het ticketpanel gecontroleerd/hersteld.
-         Daarna pas starten we de automatische updater.
-      */
+         ======================================================== */
 
       await startAllTicketPanelAutoUpdates(
         client
