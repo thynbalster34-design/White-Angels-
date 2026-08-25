@@ -62,7 +62,7 @@ export default {
       );
 
       /* ========================================================
-         SERVER MEMBERS CONTROLEREN
+         SERVER MEMBERS OPHALEN + WHITE ANGELS CONTROLEREN
          ======================================================== */
 
       for (
@@ -71,7 +71,9 @@ export default {
       ) {
         try {
           /*
-           * Haal alle members op.
+           * Alle members ophalen.
+           * Door GatewayIntentBits.GuildMembers in app.js
+           * kunnen ook offline leden worden opgehaald.
            */
           const members =
             await guild.members.fetch();
@@ -81,7 +83,7 @@ export default {
           );
 
           /*
-           * Controleer of de White Angels rol bestaat.
+           * White Angels rol ophalen via exacte ID.
            */
           const whiteAngelsRole =
             guild.roles.cache.get(
@@ -90,40 +92,44 @@ export default {
 
           if (!whiteAngelsRole) {
             startupLog(
-              `❌ White Angels role NOT FOUND: ${WHITE_ANGELS_ROLE_ID}`
+              `❌ White Angels role not found: ${WHITE_ANGELS_ROLE_ID}`
             );
-          } else {
+
+            continue;
+          }
+
+          startupLog(
+            `🤍 White Angels role found: ${whiteAngelsRole.name}`
+          );
+
+          /*
+           * Alle leden met de White Angels rol tellen.
+           */
+          const whiteAngelsMembers =
+            members.filter(
+              member =>
+                !member.user.bot &&
+                member.roles.cache.has(
+                  WHITE_ANGELS_ROLE_ID
+                )
+            );
+
+          startupLog(
+            `🤍 White Angels members detected: ${whiteAngelsMembers.size}`
+          );
+
+          /*
+           * Iedere gevonden White Angels member loggen.
+           * Dit is handig om te controleren welke leden Discord
+           * daadwerkelijk aan de bot teruggeeft.
+           */
+          for (
+            const member
+            of whiteAngelsMembers.values()
+          ) {
             startupLog(
-              `🤍 White Angels role found: ${whiteAngelsRole.name}`
+              `🤍 White Angels member: ${member.user.tag} (${member.id})`
             );
-
-            /*
-             * Tel alle leden met de White Angels rol.
-             */
-            const whiteAngelsMembers =
-              members.filter(
-                member =>
-                  !member.user.bot &&
-                  member.roles.cache.has(
-                    WHITE_ANGELS_ROLE_ID
-                  )
-              );
-
-            startupLog(
-              `🤍 White Angels members detected: ${whiteAngelsMembers.size}`
-            );
-
-            /*
-             * Laat iedere gevonden member in de log zien.
-             */
-            for (
-              const member
-              of whiteAngelsMembers.values()
-            ) {
-              startupLog(
-                `🤍 White Angels member: ${member.user.tag} (${member.id})`
-              );
-            }
           }
 
         } catch (error) {
