@@ -6,76 +6,82 @@ import {
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
+/* ============================================================
+   ROL-ID'S
+   ============================================================ */
+
+const WHITE_ANGELS_ROLE_ID =
+    '1437696432340467786';
+
 const ROLE_ORDER = [
-    { name: 'Boss', emoji: '👑', aliases: ['boss'] },
-    { name: 'Underboss', emoji: '💎', aliases: ['underboss', 'under boss'] },
-    { name: 'Righthand', emoji: '🤝', aliases: ['righthand', 'right hand', 'right-hand'] },
-    { name: 'Lefthand', emoji: '🤝', aliases: ['lefthand', 'left hand', 'left-hand'] },
-    { name: 'Headhitman', emoji: '🎯', aliases: ['headh​itman', 'head hitman', 'head-hitman'] },
-    { name: 'Hitman', emoji: '🔫', aliases: ['hitman'] },
-    { name: 'Full Member', emoji: '⭐', aliases: ['full member', 'fullmember'] },
-    { name: 'Member', emoji: '👤', aliases: ['member'] },
+    {
+        name: 'Boss',
+        emoji: '👑',
+        id: '1437696432583868582',
+    },
+    {
+        name: 'Underboss',
+        emoji: '💎',
+        id: '1437696432583868581',
+    },
+    {
+        name: 'Righthand',
+        emoji: '🤝',
+        id: '1437696432583868578',
+    },
+    {
+        name: 'Lefthand',
+        emoji: '🤝',
+        id: '1437696432412033114',
+    },
+    {
+        name: 'Headhitman',
+        emoji: '🎯',
+        id: '1437696432412033113',
+    },
+    {
+        name: 'Hitman',
+        emoji: '🔫',
+        id: '1437696432412033112',
+    },
+    {
+        name: 'Full Member',
+        emoji: '⭐',
+        id: '1437696432412033111',
+    },
+    {
+        name: 'Member',
+        emoji: '👤',
+        id: '1437696432412033109',
+    },
     {
         name: 'Jr. Member',
         emoji: '🟢',
-        aliases: [
-            'jr member',
-            'jr. member',
-            'jr-member',
-            'jrmember',
-            'junior member',
-        ],
+        id: '1437696432412033108',
     },
     {
         name: 'Hangaround',
         emoji: '📦',
-        aliases: [
-            'hangaround',
-            'hang around',
-            'hang-around',
-        ],
+        id: '1523068684241735810',
     },
 ];
 
-const MAIN_ROLE_ALIASES = [
-    'white angels',
-    'whiteangels',
-    'white-angels',
-];
+/* ============================================================
+   ACTIEVE LEDENLIJSTEN
+   ============================================================ */
 
-// Eén actieve lijst per server.
 const activeLists = new Map();
 
-function normalizeRoleName(name) {
-    return String(name || '')
-        .toLowerCase()
-        .normalize('NFKC')
-        .replace(/[^a-z0-9]/g, '');
-}
-
-function roleMatches(roleName, aliases) {
-    const normalizedRole =
-        normalizeRoleName(roleName);
-
-    return aliases.some(
-        alias =>
-            normalizeRoleName(alias) ===
-            normalizedRole
-    );
-}
-
-function findRole(guild, aliases) {
-    return guild.roles.cache.find(
-        role =>
-            roleMatches(
-                role.name,
-                aliases
-            )
-    );
-}
+/* ============================================================
+   MEMBERS OPHALEN
+   ============================================================ */
 
 async function refreshGuildMembers(guild) {
     try {
+        /*
+         * Force zorgt ervoor dat ook offline leden worden
+         * opgehaald/gecontroleerd.
+         */
         await guild.members.fetch({
             force: true,
         });
@@ -91,46 +97,34 @@ async function refreshGuildMembers(guild) {
     }
 }
 
+/* ============================================================
+   LEDENLIJST EMBED MAKEN
+   ============================================================ */
+
 async function buildMemberListEmbed(
     guild,
     client
 ) {
-    // Iedere update opnieuw members ophalen.
+    /*
+     * Iedere keer opnieuw de members verversen.
+     */
     await refreshGuildMembers(guild);
 
-    const whiteAngelsRole =
-        findRole(
-            guild,
-            MAIN_ROLE_ALIASES
-        );
-
-    if (!whiteAngelsRole) {
-        throw new Error(
-            'De White Angels-rol kon niet worden gevonden.'
-        );
-    }
-
+    /*
+     * Alleen mensen met de White Angels hoofdrol.
+     */
     const whiteAngelsMembers =
         guild.members.cache.filter(
             member =>
                 !member.user.bot &&
                 member.roles.cache.has(
-                    whiteAngelsRole.id
+                    WHITE_ANGELS_ROLE_ID
                 )
         );
 
-    const rankRoles =
-        ROLE_ORDER.map(rank => ({
-            ...rank,
-            role: findRole(
-                guild,
-                [
-                    rank.name,
-                    ...rank.aliases,
-                ]
-            ),
-        }));
-
+    /*
+     * Per rang een lege lijst maken.
+     */
     const membersByRank =
         new Map();
 
@@ -139,13 +133,16 @@ async function buildMemberListEmbed(
         of ROLE_ORDER
     ) {
         membersByRank.set(
-            rank.name,
+            rank.id,
             []
         );
     }
 
     /*
-     * Elk lid komt alleen onder zijn hoogste rang.
+     * Iedereen onder zijn hoogste rang plaatsen.
+     *
+     * De volgorde in ROLE_ORDER bepaalt wat de hoogste
+     * rang is.
      */
     for (
         const member
@@ -153,16 +150,15 @@ async function buildMemberListEmbed(
     ) {
         for (
             const rank
-            of rankRoles
+            of ROLE_ORDER
         ) {
             if (
-                rank.role &&
                 member.roles.cache.has(
-                    rank.role.id
+                    rank.id
                 )
             ) {
                 membersByRank
-                    .get(rank.name)
+                    .get(rank.id)
                     .push(member);
 
                 break;
@@ -170,15 +166,20 @@ async function buildMemberListEmbed(
         }
     }
 
+    /* ========================================================
+       EMBED
+       ======================================================== */
+
     const embed =
         new EmbedBuilder()
-            .setColor(0xFFFFFF)
+            .setColor(
+                0xFFFFFF
+            )
             .setTitle(
                 '🤍 WHITE ANGELS — LEDENLIJST'
             )
             .setDescription(
                 [
-                    '',
                     '',
                     '**🤍 TOTAAL AANTAL LEDEN**',
                     `# ${whiteAngelsMembers.size}`,
@@ -188,15 +189,21 @@ async function buildMemberListEmbed(
                 ].join('\n')
             );
 
+    /*
+     * Iedere rang toevoegen.
+     */
     for (
         const rank
         of ROLE_ORDER
     ) {
         const members =
             membersByRank.get(
-                rank.name
+                rank.id
             ) || [];
 
+        /*
+         * Alfabetisch sorteren.
+         */
         members.sort(
             (a, b) =>
                 a.displayName.localeCompare(
@@ -211,19 +218,21 @@ async function buildMemberListEmbed(
         if (
             members.length > 0
         ) {
-            value = members
-                .map(
-                    member =>
-                        `**• ${member}**`
-                )
-                .join('\n');
+            value =
+                members
+                    .map(
+                        member =>
+                            `**• ${member}**`
+                    )
+                    .join('\n');
         }
 
         embed.addFields({
             name:
                 `**${rank.emoji} ${rank.name.toUpperCase()}**`,
             value,
-            inline: false,
+            inline:
+                false,
         });
     }
 
@@ -238,6 +247,10 @@ async function buildMemberListEmbed(
 
     return embed;
 }
+
+/* ============================================================
+   OUDE UPDATER STOPPEN
+   ============================================================ */
 
 function stopExistingList(
     guildId
@@ -260,6 +273,10 @@ function stopExistingList(
     );
 }
 
+/* ============================================================
+   AUTOMATISCHE UPDATER STARTEN
+   ============================================================ */
+
 function startMemberListUpdater(
     guild,
     channel,
@@ -270,20 +287,29 @@ function startMemberListUpdater(
         guild.id
     );
 
-    let updating = false;
+    let updating =
+        false;
 
     const interval =
         setInterval(
             async () => {
-                if (updating) {
+                /*
+                 * Voorkom dat er meerdere updates tegelijk
+                 * worden uitgevoerd.
+                 */
+                if (
+                    updating
+                ) {
                     return;
                 }
 
-                updating = true;
+                updating =
+                    true;
 
                 try {
                     /*
-                     * Zorg dat het bericht nog bestaat.
+                     * Controleer of het originele bericht
+                     * nog bestaat.
                      */
                     const currentMessage =
                         await channel.messages
@@ -294,7 +320,9 @@ function startMemberListUpdater(
                                 () => null
                             );
 
-                    if (!currentMessage) {
+                    if (
+                        !currentMessage
+                    ) {
                         logger.warn(
                             `White Angels ledenlijst verwijderd in guild ${guild.id}.`
                         );
@@ -307,10 +335,9 @@ function startMemberListUpdater(
                     }
 
                     /*
-                     * Nieuwe versie van de lijst maken.
-                     * buildMemberListEmbed haalt de members
-                     * opnieuw op, dus rolwijzigingen worden
-                     * meegenomen.
+                     * Nieuwe embed bouwen.
+                     * Hier worden ook de leden en rollen opnieuw
+                     * gecontroleerd.
                      */
                     const updatedEmbed =
                         await buildMemberListEmbed(
@@ -333,7 +360,8 @@ function startMemberListUpdater(
                         error.message
                     );
                 } finally {
-                    updating = false;
+                    updating =
+                        false;
                 }
             },
             30000
@@ -353,19 +381,25 @@ function startMemberListUpdater(
     );
 }
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName(
-            'ledenlijst'
-        )
-        .setDescription(
-            'Toont de White Angels ledenlijst'
-        )
-        .setDMPermission(
-            false
-        ),
+/* ============================================================
+   COMMAND
+   ============================================================ */
 
-    category: 'Core',
+export default {
+    data:
+        new SlashCommandBuilder()
+            .setName(
+                'ledenlijst'
+            )
+            .setDescription(
+                'Toont de White Angels ledenlijst'
+            )
+            .setDMPermission(
+                false
+            ),
+
+    category:
+        'Core',
 
     async execute(
         interaction
@@ -411,19 +445,22 @@ export default {
             }
 
             /*
-             * Eerst volledig verversen.
+             * Eerste volledige refresh.
              */
             await refreshGuildMembers(
                 guild
             );
 
             /*
-             * Eventuele oude updater stoppen.
+             * Oude automatische lijst stoppen.
              */
             stopExistingList(
                 guild.id
             );
 
+            /*
+             * Embed maken.
+             */
             const embed =
                 await buildMemberListEmbed(
                     guild,
@@ -431,7 +468,7 @@ export default {
                 );
 
             /*
-             * Antwoord op de slash command.
+             * Tijdelijke slash-command bevestiging.
              */
             await InteractionHelper.safeEditReply(
                 interaction,
@@ -442,7 +479,7 @@ export default {
             );
 
             /*
-             * Normaal bericht in het kanaal.
+             * Normaal bericht plaatsen.
              */
             const listMessage =
                 await interaction.channel.send({
