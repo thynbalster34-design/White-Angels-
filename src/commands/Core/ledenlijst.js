@@ -4,16 +4,16 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
 const ROLE_ORDER = [
-    'Boss',
-    'Underboss',
-    'Righthand',
-    'Lefthand',
-    'Headhitman',
-    'Hitman',
-    'Full Member',
-    'Member',
-    'Jr. Member',
-    'Hangaround',
+    { name: 'Boss', emoji: '👑' },
+    { name: 'Underboss', emoji: '💎' },
+    { name: 'Righthand', emoji: '🤝' },
+    { name: 'Lefthand', emoji: '🤝' },
+    { name: 'Headhitman', emoji: '🎯' },
+    { name: 'Hitman', emoji: '🔫' },
+    { name: 'Full Member', emoji: '⭐' },
+    { name: 'Member', emoji: '👤' },
+    { name: 'Jr. Member', emoji: '🟢' },
+    { name: 'Hangaround', emoji: '📦' },
 ];
 
 const MAIN_ROLE = 'White Angels';
@@ -38,7 +38,8 @@ export default {
 
             if (!guild) {
                 return InteractionHelper.safeEditReply(interaction, {
-                    content: '❌ Dit command kan alleen in een server gebruikt worden.',
+                    content:
+                        '❌ Dit command kan alleen in een server gebruikt worden.',
                 });
             }
 
@@ -52,7 +53,8 @@ export default {
 
             if (!whiteAngelsRole) {
                 return InteractionHelper.safeEditReply(interaction, {
-                    content: `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
+                    content:
+                        `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
                 });
             }
 
@@ -65,21 +67,26 @@ export default {
             const lines = [];
 
             lines.push(
-                `**Totaal aantal leden:** ${members.size}`,
+                `**🤍 Totaal aantal ${MAIN_ROLE} leden: ${members.size}**`,
                 ''
             );
 
-            for (const roleName of ROLE_ORDER) {
+            for (const roleInfo of ROLE_ORDER) {
                 const role = guild.roles.cache.find(
                     r =>
                         r.name.trim().toLowerCase() ===
-                        roleName.toLowerCase()
+                        roleInfo.name.toLowerCase()
                 );
 
-                lines.push(`**${roleName}**`);
+                lines.push(
+                    `### ${roleInfo.emoji} ${roleInfo.name}`
+                );
 
                 if (!role) {
-                    lines.push('*Rol niet gevonden*', '');
+                    lines.push(
+                        '*Rol niet gevonden*',
+                        ''
+                    );
                     continue;
                 }
 
@@ -95,7 +102,10 @@ export default {
                     );
 
                 if (roleMembers.size === 0) {
-                    lines.push('*Geen leden*', '');
+                    lines.push(
+                        '*Geen leden*',
+                        ''
+                    );
                 } else {
                     for (const member of roleMembers.values()) {
                         lines.push(`• ${member}`);
