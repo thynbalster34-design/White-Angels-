@@ -18,6 +18,21 @@ const ROLE_ORDER = [
 
 const MAIN_ROLE = 'White Angels';
 
+function normalizeRoleName(name) {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/[\s._-]/g, '');
+}
+
+function findRole(guild, wantedName) {
+    const wanted = normalizeRoleName(wantedName);
+
+    return guild.roles.cache.find(
+        role =>
+            normalizeRoleName(role.name) === wanted
+    );
+}
+
 export default {
     data: new SlashCommandBuilder()
         .setName('ledenlijst')
@@ -38,14 +53,17 @@ export default {
             const guild = interaction.guild;
 
             if (!guild) {
-                return InteractionHelper.safeEditReply(interaction, {
-                    content:
-                        '❌ Dit command kan alleen in een server gebruikt worden.',
-                });
+                return InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                        content:
+                            '❌ Dit command kan alleen in een server gebruikt worden.',
+                    }
+                );
             }
 
-            // Gebruik de bestaande cache.
-            // Alleen fetchen als de cache daadwerkelijk leeg is.
+            // Gebruik de bestaande leden-cache.
+            // Alleen fetchen wanneer de cache leeg is.
             if (guild.members.cache.size === 0) {
                 try {
                     await guild.members.fetch();
@@ -58,11 +76,7 @@ export default {
             }
 
             const whiteAngelsRole =
-                guild.roles.cache.find(
-                    role =>
-                        role.name.trim().toLowerCase() ===
-                        MAIN_ROLE.toLowerCase()
-                );
+                findRole(guild, MAIN_ROLE);
 
             if (!whiteAngelsRole) {
                 return InteractionHelper.safeEditReply(
@@ -74,6 +88,7 @@ export default {
                 );
             }
 
+            // Alleen leden met de White Angels-hoofdrol.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
@@ -83,31 +98,26 @@ export default {
                         )
                 );
 
-            const lines = [];
+            const embed = createEmbed({
+                title:
+                    '🤍 WHITE ANGELS — LEDENLIJST',
+                description:
+                    `\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**`,
+                color: '#FFFFFF',
+            });
 
-            lines.push(
-                '',
-                `**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**`,
-                ''
-            );
-
+            // Elke rang als apart veld.
             for (const roleInfo of ROLE_ORDER) {
                 const role =
-                    guild.roles.cache.find(
-                        r =>
-                            r.name.trim().toLowerCase() ===
-                            roleInfo.name.toLowerCase()
-                    );
-
-                lines.push(
-                    `### ${roleInfo.emoji} ${roleInfo.name}`
-                );
+                    findRole(guild, roleInfo.name);
 
                 if (!role) {
-                    lines.push(
-                        '*Rol niet gevonden*',
-                        ''
-                    );
+                    embed.addFields({
+                        name: `${roleInfo.emoji} ${roleInfo.name}`,
+                        value: '*Rol niet gevonden*',
+                        inline: false,
+                    });
+
                     continue;
                 }
 
@@ -125,33 +135,23 @@ export default {
                             )
                         );
 
+                let value;
+
                 if (roleMembers.size === 0) {
-                    lines.push(
-                        '*Geen leden*',
-                        ''
-                    );
-                    continue;
+                    value = '*Geen leden*';
+                } else {
+                    value = roleMembers
+                        .map(member => `• ${member}`)
+                        .join('\n');
                 }
 
-                for (
-                    const member
-                    of roleMembers.values()
-                ) {
-                    lines.push(`• ${member}`);
-                }
-
-                lines.push('');
+                embed.addFields({
+                    name:
+                        `${roleInfo.emoji} ${roleInfo.name}`,
+                    value,
+                    inline: false,
+                });
             }
-
-            const description =
-                lines.join('\n');
-
-            const embed = createEmbed({
-                title:
-                    '🤍 WHITE ANGELS — LEDENLIJST',
-                description,
-                color: '#FFFFFF',
-            });
 
             embed.setFooter({
                 text:
