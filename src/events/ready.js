@@ -20,10 +20,6 @@ import {
   initRiffyAfterReady,
 } from "../services/music/riffySetup.js";
 
-import {
-  startAllTicketPanelAutoUpdates,
-} from "../commands/Ticket/modules/ticket_dashboard.js";
-
 /* ============================================================
    WHITE ANGELS ROLE
    ============================================================ */
@@ -62,7 +58,7 @@ export default {
       );
 
       /* ========================================================
-         SERVER MEMBERS OPHALEN + WHITE ANGELS CONTROLEREN
+         SERVER MEMBERS OPHALEN
          ======================================================== */
 
       for (
@@ -70,11 +66,6 @@ export default {
         of client.guilds.cache.values()
       ) {
         try {
-          /*
-           * Alle members ophalen.
-           * Door GatewayIntentBits.GuildMembers in app.js
-           * kunnen ook offline leden worden opgehaald.
-           */
           const members =
             await guild.members.fetch();
 
@@ -82,9 +73,10 @@ export default {
             `✅ Members loaded for ${guild.name}: ${members.size}`
           );
 
-          /*
-           * White Angels rol ophalen via exacte ID.
-           */
+          /* ====================================================
+             WHITE ANGELS ROL CONTROLEREN
+             ==================================================== */
+
           const whiteAngelsRole =
             guild.roles.cache.get(
               WHITE_ANGELS_ROLE_ID
@@ -102,9 +94,10 @@ export default {
             `🤍 White Angels role found: ${whiteAngelsRole.name}`
           );
 
-          /*
-           * Alle leden met de White Angels rol tellen.
-           */
+          /* ====================================================
+             WHITE ANGELS LEDEN TELLEN
+             ==================================================== */
+
           const whiteAngelsMembers =
             members.filter(
               member =>
@@ -118,11 +111,10 @@ export default {
             `🤍 White Angels members detected: ${whiteAngelsMembers.size}`
           );
 
-          /*
-           * Iedere gevonden White Angels member loggen.
-           * Dit is handig om te controleren welke leden Discord
-           * daadwerkelijk aan de bot teruggeeft.
-           */
+          /* ====================================================
+             WHITE ANGELS LEDEN LOGGEN
+             ==================================================== */
+
           for (
             const member
             of whiteAngelsMembers.values()
@@ -179,14 +171,6 @@ export default {
       );
 
       /* ========================================================
-         TICKET PANEL AUTO UPDATE
-         ======================================================== */
-
-      await startAllTicketPanelAutoUpdates(
-        client
-      );
-
-      /* ========================================================
          VERIFICATION PANEL
          ======================================================== */
 
@@ -226,7 +210,7 @@ export default {
       );
 
       /* ========================================================
-         KLAAR
+         READY
          ======================================================== */
 
       startupLog(
