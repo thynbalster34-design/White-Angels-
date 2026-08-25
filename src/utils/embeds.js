@@ -3,7 +3,6 @@
 import { EmbedBuilder } from 'discord.js';
 import { getColor, botConfig } from '../config/bot.js';
 
-const EMOJI_REGEX = /[\p{Extended_Pictographic}\uFE0F]/gu;
 const EMBED_FOOTER_SYMBOL = Symbol('titanbotFooterText');
 const EMBED_BASE_DESCRIPTION_SYMBOL = Symbol('titanbotBaseDescription');
 
@@ -13,7 +12,6 @@ function sanitizeEmbedText(text = '') {
   }
 
   return text
-    .replace(EMOJI_REGEX, '')
     .replace(/[ \t]+/g, ' ')
     .replace(/[ \t]\n/g, '\n')
     .replace(/\n[ \t]/g, '\n')
@@ -101,8 +99,7 @@ function isImportantFooter(footerText) {
     return false;
   }
 
-  const normalized =
-    footerText.toLowerCase();
+  const normalized = footerText.toLowerCase();
 
   return /\b(close|closes|closed|expire|expires|available in|page\s+\d+|dashboard closes|ticket id)\b/.test(
     normalized
@@ -121,10 +118,9 @@ const originalSetTimestamp =
 EmbedBuilder.prototype.setDescription = function (
   description = ''
 ) {
-  const descString =
-    sanitizeEmbedText(
-      description || ''
-    );
+  const descString = sanitizeEmbedText(
+    description || ''
+  );
 
   this[
     EMBED_BASE_DESCRIPTION_SYMBOL
@@ -139,10 +135,9 @@ EmbedBuilder.prototype.setDescription = function (
 EmbedBuilder.prototype.setFooter = function (
   footer
 ) {
-  const footerText =
-    sanitizeEmbedText(
-      normalizeFooterText(footer)
-    );
+  const footerText = sanitizeEmbedText(
+    normalizeFooterText(footer)
+  );
 
   if (
     !footerText ||
@@ -179,8 +174,7 @@ export function createEmbed({
   timestamp = false,
   url = null,
 } = {}) {
-  const embed =
-    new EmbedBuilder();
+  const embed = new EmbedBuilder();
 
   if (
     title &&
@@ -206,9 +200,7 @@ export function createEmbed({
     const embedColor =
       getColor(color) || '#000000';
 
-    embed.setColor(
-      embedColor
-    );
+    embed.setColor(embedColor);
   } catch (error) {
     embed.setColor('#000000');
   }
@@ -217,13 +209,12 @@ export function createEmbed({
     Array.isArray(fields) &&
     fields.length > 0
   ) {
-    const validFields =
-      fields.filter(
-        (f) =>
-          f &&
-          f.name &&
-          f.value
-      );
+    const validFields = fields.filter(
+      (f) =>
+        f &&
+        f.name &&
+        f.value
+    );
 
     if (validFields.length > 0) {
       embed.addFields(
@@ -239,10 +230,7 @@ export function createEmbed({
         author.length > 0
       ) {
         embed.setAuthor({
-          name: author.substring(
-            0,
-            256
-          ),
+          name: author.substring(0, 256),
         });
       } else if (
         author &&
@@ -257,8 +245,7 @@ export function createEmbed({
     botConfig.embeds?.author?.name
   ) {
     embed.setAuthor({
-      name:
-        botConfig.embeds.author.name,
+      name: botConfig.embeds.author.name,
       ...(botConfig.embeds.author.icon
         ? {
             iconURL:
@@ -281,18 +268,13 @@ export function createEmbed({
         footer.length > 0
       ) {
         embed.setFooter({
-          text: footer.substring(
-            0,
-            2048
-          ),
+          text: footer.substring(0, 2048),
         });
       } else if (
         footer &&
         typeof footer.text === 'string'
       ) {
-        embed.setFooter(
-          footer
-        );
+        embed.setFooter(footer);
       }
     } catch (error) {
       // Ignore footer formatting errors.
@@ -301,8 +283,7 @@ export function createEmbed({
     botConfig.embeds?.footer?.text
   ) {
     const defaultFooter = {
-      text:
-        botConfig.embeds.footer.text,
+      text: botConfig.embeds.footer.text,
       ...(botConfig.embeds.footer.icon
         ? {
             iconURL:
@@ -311,9 +292,7 @@ export function createEmbed({
         : {}),
     };
 
-    embed.setFooter(
-      defaultFooter
-    );
+    embed.setFooter(defaultFooter);
   }
 
   if (thumbnail) {
@@ -322,16 +301,12 @@ export function createEmbed({
         typeof thumbnail === 'string' &&
         thumbnail.length > 0
       ) {
-        embed.setThumbnail(
-          thumbnail
-        );
+        embed.setThumbnail(thumbnail);
       } else if (
         thumbnail &&
         typeof thumbnail.url === 'string'
       ) {
-        embed.setThumbnail(
-          thumbnail.url
-        );
+        embed.setThumbnail(thumbnail.url);
       }
     } catch (error) {
       // Ignore thumbnail errors.
@@ -355,9 +330,7 @@ export function createEmbed({
         image &&
         typeof image.url === 'string'
       ) {
-        embed.setImage(
-          image.url
-        );
+        embed.setImage(image.url);
       }
     } catch (error) {
       // Ignore image errors.
@@ -366,12 +339,8 @@ export function createEmbed({
 
   if (timestamp === true) {
     embed.setTimestamp();
-  } else if (
-    timestamp instanceof Date
-  ) {
-    embed.setTimestamp(
-      timestamp
-    );
+  } else if (timestamp instanceof Date) {
+    embed.setTimestamp(timestamp);
   }
 
   if (
@@ -424,8 +393,7 @@ export function buildUserErrorEmbed(
   description = '',
   options = {}
 ) {
-  const type =
-    errorType || 'unknown';
+  const type = errorType || 'unknown';
 
   const title =
     options.titleOverride ||
@@ -447,9 +415,7 @@ export function buildUserErrorEmbed(
   });
 }
 
-function containsDiscordRenderable(
-  content = ''
-) {
+function containsDiscordRenderable(content = '') {
   return /<@!?&?\d+>|<#\d+>|\b\d{17,19}\b/.test(
     String(content)
   );
@@ -464,13 +430,10 @@ function buildNotificationEmbed(
     NOTIFICATION_DEFAULT_TITLES[color] ||
     NOTIFICATION_DEFAULT_TITLES.primary;
 
-  let titleText =
-    String(title || '').trim();
-
-  let bodyText =
-    body
-      ? String(body).trim()
-      : '';
+  let titleText = String(title || '').trim();
+  let bodyText = body
+    ? String(body).trim()
+    : '';
 
   if (
     titleText &&
@@ -480,15 +443,12 @@ function buildNotificationEmbed(
       ? `${titleText}\n\n${bodyText}`
       : titleText;
 
-    titleText =
-      defaultTitle;
+    titleText = defaultTitle;
   }
 
   return createEmbed({
-    title:
-      titleText || defaultTitle,
-    description:
-      bodyText || undefined,
+    title: titleText || defaultTitle,
+    description: bodyText || undefined,
     color,
   });
 }
@@ -503,8 +463,7 @@ export function errorEmbed(
 ) {
   const {
     showDetails =
-      process.env.NODE_ENV !==
-      'production',
+      process.env.NODE_ENV !== 'production',
   } = options;
 
   let body = detail;
@@ -518,20 +477,15 @@ export function errorEmbed(
       detail.message ||
       String(detail);
 
-    body =
-      formatCodeBlock(
-        detailText
-      );
+    body = formatCodeBlock(detailText);
   }
 
-  const description =
-    body
-      ? String(body).trim()
-      : '';
+  const description = body
+    ? String(body).trim()
+    : '';
 
   const titleOverride =
-    title &&
-    title !== 'Error'
+    title && title !== 'Error'
       ? title
       : undefined;
 
@@ -543,10 +497,7 @@ export function errorEmbed(
 }
 
 /** @param {string} titleOrBody */
-export function successEmbed(
-  title,
-  body = ''
-) {
+export function successEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed(
       'Success',
@@ -563,10 +514,7 @@ export function successEmbed(
 }
 
 /** @param {string} titleOrBody */
-export function infoEmbed(
-  title,
-  body = ''
-) {
+export function infoEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed(
       'Information',
@@ -583,10 +531,7 @@ export function infoEmbed(
 }
 
 /** @param {string} titleOrBody */
-export function warningEmbed(
-  title,
-  body = ''
-) {
+export function warningEmbed(title, body = '') {
   if (arguments.length === 1) {
     return buildNotificationEmbed(
       'Warning',
@@ -622,50 +567,34 @@ export function formatCodeBlock(
   content,
   language = ''
 ) {
-  return `\`\`\`${language}
-${content}
-\`\`\``;
+  return `\`\`\`${language}\n${content}\n\`\`\``;
 }
 
-export function formatInlineCode(
-  content
-) {
+export function formatInlineCode(content) {
   return `\`${content}\``;
 }
 
-export function formatBold(
-  content
-) {
+export function formatBold(content) {
   return `**${content}**`;
 }
 
-export function formatItalic(
-  content
-) {
+export function formatItalic(content) {
   return `*${content}*`;
 }
 
-export function formatUnderline(
-  content
-) {
+export function formatUnderline(content) {
   return `__${content}__`;
 }
 
-export function formatStrikethrough(
-  content
-) {
+export function formatStrikethrough(content) {
   return `~~${content}~~`;
 }
 
-export function formatSpoiler(
-  content
-) {
+export function formatSpoiler(content) {
   return `||${content}||`;
 }
 
-export function formatQuote(
-  content
-) {
+export function formatQuote(content) {
   return `> ${content}`;
 }
 
@@ -683,9 +612,7 @@ export function formatList(
     .join('\n');
 }
 
-export function formatDuration(
-  ms
-) {
+export function formatDuration(ms) {
   if (ms < 0) {
     return '0s';
   }
@@ -737,22 +664,16 @@ export function formatProgressBar(
   max,
   size = 10
 ) {
-  const progress =
-    Math.min(
-      Math.max(
-        0,
-        current / max
-      ),
-      1
-    );
+  const progress = Math.min(
+    Math.max(0, current / max),
+    1
+  );
 
-  const filled =
-    Math.round(
-      size * progress
-    );
+  const filled = Math.round(
+    size * progress
+  );
 
-  const empty =
-    size - filled;
+  const empty = size - filled;
 
   return `[${'█'.repeat(
     filled
