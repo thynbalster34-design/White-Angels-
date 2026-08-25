@@ -73,24 +73,26 @@ const ROLE_ORDER = [
 const activeLists = new Map();
 
 /* ============================================================
-   MEMBERS OPHALEN
+   MEMBERS EENMALIG OPHALEN
    ============================================================ */
 
-async function refreshGuildMembers(guild) {
+async function loadGuildMembers(guild) {
     try {
         /*
-         * Force zorgt ervoor dat ook offline leden worden
-         * opgehaald/gecontroleerd.
+         * Eén volledige fetch bij het starten van /ledenlijst.
+         * Daarna gebruiken we de cache.
          */
-        await guild.members.fetch({
-            force: true,
-        });
+        await guild.members.fetch();
+
+        logger.info(
+            `✅ ${guild.members.cache.size} members loaded for ${guild.name}`
+        );
 
         return true;
     } catch (error) {
-        logger.warn(
-            `Failed to refresh members for guild ${guild.id}:`,
-            error.message
+        logger.error(
+            `Failed to fetch members for guild ${guild.id}:`,
+            error
         );
 
         return false;
@@ -98,20 +100,19 @@ async function refreshGuildMembers(guild) {
 }
 
 /* ============================================================
-   LEDENLIJST EMBED MAKEN
+   LEDENLIJST EMBED
    ============================================================ */
 
-async function buildMemberListEmbed(
+function buildMemberListEmbed(
     guild,
     client
 ) {
     /*
-     * Iedere keer opnieuw de members verversen.
-     */
-    await refreshGuildMembers(guild);
-
-    /*
-     * Alleen mensen met de White Angels hoofdrol.
+     * Alleen mensen met de White Angels-rol.
+     *
+     * We gebruiken bewust de cache.
+     * Je bot heeft al guildMemberUpdate events waardoor
+     * rolwijzigingen automatisch in de cache terechtkomen.
      */
     const whiteAngelsMembers =
         guild.members.cache.filter(
@@ -123,7 +124,7 @@ async function buildMemberListEmbed(
         );
 
     /*
-     * Per rang een lege lijst maken.
+     * Per rang een lijst maken.
      */
     const membersByRank =
         new Map();
@@ -139,10 +140,7 @@ async function buildMemberListEmbed(
     }
 
     /*
-     * Iedereen onder zijn hoogste rang plaatsen.
-     *
-     * De volgorde in ROLE_ORDER bepaalt wat de hoogste
-     * rang is.
+     * Ieder lid krijgt alleen zijn hoogste rang.
      */
     for (
         const member
@@ -190,7 +188,7 @@ async function buildMemberListEmbed(
             );
 
     /*
-     * Iedere rang toevoegen.
+     * Elke rang tonen.
      */
     for (
         const rank
@@ -271,10 +269,14 @@ function stopExistingList(
     activeLists.delete(
         guildId
     );
+
+    logger.info(
+        `White Angels ledenlijst updater gestopt voor guild ${guildId}`
+    );
 }
 
 /* ============================================================
-   AUTOMATISCHE UPDATER STARTEN
+   AUTOMATISCHE UPDATER
    ============================================================ */
 
 function startMemberListUpdater(
@@ -290,81 +292,85 @@ function startMemberListUpdater(
     let updating =
         false;
 
-    const interval =
-        setInterval(
-            async () => {
+    /*
+     * Meteen één update uitvoeren.
+     */
+    const updateList =
+        async () => {
+            if (updating) {
+                return;
+            }
+
+            updating = true;
+
+            try {
                 /*
-                 * Voorkom dat er meerdere updates tegelijk
-                 * worden uitgevoerd.
+                 * Controleer of het bericht nog bestaat.
                  */
-                if (
-                    updating
-                ) {
+                const currentMessage =
+                    await channel.messages
+                        .fetch(
+                            message.id
+                        )
+                        .catch(
+                            () => null
+                        );
+
+                if (!currentMessage) {
+                    logger.warn(
+                        `White Angels ledenlijst bestaat niet meer in guild ${guild.id}`
+                    );
+
+                    stopExistingList(
+                        guild.id
+                    );
+
                     return;
                 }
 
-                updating =
-                    true;
-
-                try {
-                    /*
-                     * Controleer of het originele bericht
-                     * nog bestaat.
-                     */
-                    const currentMessage =
-                        await channel.messages
-                            .fetch(
-                                message.id
-                            )
-                            .catch(
-                                () => null
-                            );
-
-                    if (
-                        !currentMessage
-                    ) {
-                        logger.warn(
-                            `White Angels ledenlijst verwijderd in guild ${guild.id}.`
-                        );
-
-                        stopExistingList(
-                            guild.id
-                        );
-
-                        return;
-                    }
-
-                    /*
-                     * Nieuwe embed bouwen.
-                     * Hier worden ook de leden en rollen opnieuw
-                     * gecontroleerd.
-                     */
-                    const updatedEmbed =
-                        await buildMemberListEmbed(
-                            guild,
-                            client
-                        );
-
-                    await currentMessage.edit({
-                        embeds: [
-                            updatedEmbed,
-                        ],
-                    });
-
-                    logger.info(
-                        `✅ White Angels ledenlijst bijgewerkt in ${guild.name}`
+                /*
+                 * Cache opnieuw uitlezen.
+                 *
+                 * Geen guild.members.fetch() hier.
+                 * Dat voorkomt onnodige Gateway requests.
+                 */
+                const updatedEmbed =
+                    buildMemberListEmbed(
+                        guild,
+                        client
                     );
-                } catch (error) {
-                    logger.warn(
-                        `Failed to update White Angels ledenlijst in guild ${guild.id}:`,
-                        error.message
-                    );
-                } finally {
-                    updating =
-                        false;
-                }
-            },
-            30000
+
+                await currentMessage.edit({
+                    embeds: [
+                        updatedEmbed,
+                    ],
+                });
+
+                logger.info(
+                    `✅ White Angels ledenlijst bijgewerkt in ${guild.name}`
+                );
+            } catch (error) {
+                logger.warn(
+                    `Failed to update White Angels ledenlijst in guild ${guild.id}:`,
+                    error.message
+                );
+            } finally {
+                updating = false;
+            }
+        };
+
+    /*
+     * Meteen uitvoeren.
+     */
+    updateList().catch(() => {});
+
+    /*
+     * Daarna iedere 30 seconden.
+     */
+    const interval =
+        setInterval(
+            updateList,
+            30_000
         );
 
     activeLists.set(
@@ -378,6 +384,10 @@ function startMemberListUpdater(
 
             interval,
         }
+    );
+
+    logger.info(
+        `✅ White Angels ledenlijst updater gestart voor guild ${guild.id}`
     );
 }
 
@@ -445,30 +455,45 @@ export default {
             }
 
             /*
-             * Eerste volledige refresh.
+             * Één volledige member fetch.
+             *
+             * Dit vult de cache met offline leden.
              */
-            await refreshGuildMembers(
-                guild
-            );
+            const loaded =
+                await loadGuildMembers(
+                    guild
+                );
+
+            if (!loaded) {
+                await InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                        content:
+                            '❌ Ik kon de serverleden niet ophalen. Controleer of de bot de juiste intents heeft.',
+                    }
+                );
+
+                return;
+            }
 
             /*
-             * Oude automatische lijst stoppen.
+             * Bestaande updater stoppen.
              */
             stopExistingList(
                 guild.id
             );
 
             /*
-             * Embed maken.
+             * Eerste embed maken.
              */
             const embed =
-                await buildMemberListEmbed(
+                buildMemberListEmbed(
                     guild,
                     interaction.client
                 );
 
             /*
-             * Tijdelijke slash-command bevestiging.
+             * Slash command bevestiging.
              */
             await InteractionHelper.safeEditReply(
                 interaction,
@@ -479,7 +504,7 @@ export default {
             );
 
             /*
-             * Normaal bericht plaatsen.
+             * Normaal bericht in kanaal.
              */
             const listMessage =
                 await interaction.channel.send({
@@ -498,9 +523,6 @@ export default {
                 interaction.client
             );
 
-            logger.info(
-                `✅ White Angels ledenlijst updater gestart voor guild ${guild.id}`
-            );
         } catch (error) {
             logger.error(
                 'Ledenlijst command error:',
