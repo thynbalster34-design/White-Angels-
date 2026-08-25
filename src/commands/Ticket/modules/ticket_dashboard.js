@@ -146,7 +146,7 @@ function buildPanelButtonRow(config) {
             .setCustomId('create_ticket')
             .setLabel('Sollicitatie')
             .setStyle(ButtonStyle.Primary)
-            .setEmoji('👇')
+            .setEmoji('💪')
     );
 }
 
