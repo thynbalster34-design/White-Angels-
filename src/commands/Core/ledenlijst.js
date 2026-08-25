@@ -48,8 +48,7 @@ function findRole(guild, aliases) {
 async function refreshMembers(guild) {
     const now = Date.now();
 
-    // Niet iedere keer opnieuw alle leden ophalen.
-    // Maximaal één volledige fetch per 60 seconden.
+    // Voorkomt meerdere volledige member fetches kort achter elkaar.
     if (
         memberFetchPromise &&
         now - lastMemberFetch < 60000
@@ -125,10 +124,7 @@ export default {
             });
 
             const whiteAngelsRole =
-                findRole(
-                    guild,
-                    MAIN_ROLE_ALIASES
-                );
+                findRole(guild, MAIN_ROLE_ALIASES);
 
             if (!whiteAngelsRole) {
                 await InteractionHelper.safeEditReply(
@@ -142,7 +138,7 @@ export default {
                 return;
             }
 
-            // Alle mensen met de White Angels hoofdrol.
+            // Alle menselijke leden met de White Angels hoofdrol.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
@@ -152,22 +148,17 @@ export default {
                         )
                 );
 
-            // Rangrollen zoeken.
-            const rankRoles =
-                ROLE_ORDER.map(rank => ({
-                    ...rank,
-                    role: findRole(
-                        guild,
-                        [
-                            rank.name,
-                            ...rank.aliases,
-                        ]
-                    ),
-                }));
+            // Zoek alle rangrollen.
+            const rankRoles = ROLE_ORDER.map(rank => ({
+                ...rank,
+                role: findRole(
+                    guild,
+                    [rank.name, ...rank.aliases]
+                ),
+            }));
 
-            // Leden per rang.
-            const membersByRank =
-                new Map();
+            // Maak per rang een lijst.
+            const membersByRank = new Map();
 
             for (const rank of ROLE_ORDER) {
                 membersByRank.set(
@@ -176,7 +167,8 @@ export default {
                 );
             }
 
-            // Ieder lid krijgt alleen zijn hoogste rang.
+            // Iedere member krijgt alleen de hoogste rang
+            // die hij/zij van White Angels heeft.
             for (
                 const member
                 of whiteAngelsMembers.values()
@@ -200,7 +192,6 @@ export default {
                 }
             }
 
-            // Maak de embed.
             const embed =
                 new EmbedBuilder()
                     .setColor(0xFFFFFF)
@@ -211,7 +202,7 @@ export default {
                         [
                             '',
                             '',
-                            `## 🤍 TOTAAL AANTAL LEDEN`,
+                            '**🤍 TOTAAL AANTAL LEDEN**',
                             `# ${whiteAngelsMembers.size}`,
                             '',
                             '━━━━━━━━━━━━━━━━━━━━',
@@ -219,7 +210,6 @@ export default {
                         ].join('\n')
                     );
 
-            // Elke rang groot en duidelijk.
             for (
                 const rank
                 of ROLE_ORDER
@@ -229,34 +219,27 @@ export default {
                         rank.name
                     ) || [];
 
-                const memberLines =
-                    members
-                        .sort((a, b) =>
-                            a.displayName.localeCompare(
-                                b.displayName,
-                                'nl'
-                            )
-                        )
+                members.sort((a, b) =>
+                    a.displayName.localeCompare(
+                        b.displayName,
+                        'nl'
+                    )
+                );
+
+                let value = '*Geen leden*';
+
+                if (members.length > 0) {
+                    value = members
                         .map(
                             member =>
-                                `• ${member}`
-                        );
-
-                let value =
-                    '*Geen leden*';
-
-                if (
-                    memberLines.length > 0
-                ) {
-                    value =
-                        memberLines.join(
-                            '\n'
-                        );
+                                `**• ${member}**`
+                        )
+                        .join('\n');
                 }
 
                 embed.addFields({
                     name:
-                        `## ${rank.emoji} ${rank.name.toUpperCase()}`,
+                        `**${rank.emoji} ${rank.name.toUpperCase()}**`,
                     value,
                     inline: false,
                 });
@@ -278,6 +261,7 @@ export default {
                     embeds: [embed],
                 }
             );
+
         } catch (error) {
             logger.error(
                 'Ledenlijst command error:',
