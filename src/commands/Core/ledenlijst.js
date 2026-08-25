@@ -21,6 +21,9 @@ const MAIN_ROLE_ALIASES = [
     'white-angels',
 ];
 
+let memberFetchPromise = null;
+let lastMemberFetch = 0;
+
 function normalizeRoleName(name) {
     return String(name || '')
         .toLowerCase()
@@ -32,8 +35,7 @@ function roleMatches(roleName, aliases) {
     const normalizedRole = normalizeRoleName(roleName);
 
     return aliases.some(
-        alias =>
-            normalizeRoleName(alias) === normalizedRole
+        alias => normalizeRoleName(alias) === normalizedRole
     );
 }
 
@@ -41,6 +43,36 @@ function findRole(guild, aliases) {
     return guild.roles.cache.find(role =>
         roleMatches(role.name, aliases)
     );
+}
+
+async function refreshMembers(guild) {
+    const now = Date.now();
+
+    // Niet iedere keer opnieuw alle leden ophalen.
+    // Cache 60 seconden, zodat Discord niet wordt geratelimit.
+    if (memberFetchPromise && now - lastMemberFetch < 60000) {
+        return memberFetchPromise;
+    }
+
+    lastMemberFetch = now;
+
+    memberFetchPromise = guild.members.fetch()
+        .then(members => {
+            logger.info(
+                `Fetched ${members.size} members for White Angels ledenlijst.`
+            );
+            return members;
+        })
+        .catch(error => {
+            memberFetchPromise = null;
+            logger.error(
+                'Failed to fetch all guild members:',
+                error
+            );
+            throw error;
+        });
+
+    return memberFetchPromise;
 }
 
 export default {
@@ -70,27 +102,16 @@ export default {
                 return;
             }
 
-            // Vernieuw de rollen.
-            try {
-                await guild.roles.fetch();
-            } catch (error) {
+            // Haal ALLE leden op, dus ook offline leden.
+            await refreshMembers(guild);
+
+            // Rollen verversen.
+            await guild.roles.fetch().catch(error => {
                 logger.warn(
                     'Could not refresh guild roles:',
                     error.message
                 );
-            }
-
-            // Vernieuw leden alleen wanneer de cache leeg is.
-            if (guild.members.cache.size === 0) {
-                try {
-                    await guild.members.fetch();
-                } catch (error) {
-                    logger.error(
-                        'Failed to fetch guild members:',
-                        error
-                    );
-                }
-            }
+            });
 
             const whiteAngelsRole = findRole(
                 guild,
@@ -105,17 +126,14 @@ export default {
                 return;
             }
 
-            // Alle White Angels leden.
+            // Alle White Angels leden, online én offline.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
                         !member.user.bot &&
-                        member.roles.cache.has(
-                            whiteAngelsRole.id
-                        )
+                        member.roles.cache.has(whiteAngelsRole.id)
                 );
 
-            // Zoek voor iedere rang het daadwerkelijke Role-object.
             const rankRoles = ROLE_ORDER.map(rank => ({
                 ...rank,
                 role: findRole(
@@ -124,40 +142,29 @@ export default {
                 ),
             }));
 
-            // Maak per rang een lijst.
             const membersByRank = new Map();
 
             for (const rank of ROLE_ORDER) {
                 membersByRank.set(rank.name, []);
             }
 
-            // Plaats ieder lid bij zijn hoogste White Angels-rang.
+            // Ieder lid krijgt zijn hoogste rang.
             for (const member of whiteAngelsMembers.values()) {
-                let assignedRank = null;
-
                 for (const rank of rankRoles) {
                     if (
                         rank.role &&
                         member.roles.cache.has(rank.role.id)
                     ) {
-                        assignedRank = rank;
+                        membersByRank
+                            .get(rank.name)
+                            .push(member);
+
                         break;
                     }
                 }
-
-                if (assignedRank) {
-                    membersByRank
-                        .get(assignedRank.name)
-                        .push(member);
-                }
             }
 
-            const embed = new EmbedBuilder()
-                .setTitle('🤍 WHITE ANGELS — LEDENLIJST')
-                .setDescription(
-                    `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`
-                )
-                .setColor(0xFFFFFF);
+            const fields = [];
 
             for (const rank of ROLE_ORDER) {
                 const members =
@@ -166,31 +173,37 @@ export default {
                 let value = '*Geen leden*';
 
                 if (members.length > 0) {
-                    value = members
-                        .sort((a, b) =>
-                            a.displayName.localeCompare(
-                                b.displayName,
-                                'nl'
-                            )
+                    members.sort((a, b) =>
+                        a.displayName.localeCompare(
+                            b.displayName,
+                            'nl'
                         )
+                    );
+
+                    value = members
                         .map(member => `• ${member}`)
                         .join('\n');
                 }
 
-                embed.addFields({
+                fields.push({
                     name: `${rank.emoji} ${rank.name}`,
                     value,
                     inline: false,
                 });
             }
 
-            embed.setFooter({
-                text: 'White Angels • Ledenlijst',
-                icon_url:
-                    interaction.client.user.displayAvatarURL(),
-            });
-
-            embed.setTimestamp();
+            const embed = new EmbedBuilder()
+                .setTitle('🤍 WHITE ANGELS — LEDENLIJST')
+                .setDescription(
+                    `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`
+                )
+                .setColor(0xFFFFFF)
+                .addFields(fields)
+                .setFooter({
+                    text: 'White Angels • Ledenlijst',
+                    iconURL:
+                        interaction.client.user.displayAvatarURL(),
+                });
 
             await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed],
