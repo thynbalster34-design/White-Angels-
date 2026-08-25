@@ -167,7 +167,7 @@ function buildPanelButtonRow() {
             .setStyle(
                 ButtonStyle.Primary
             )
-            .setEmoji('📩')
+            .setEmoji('💪')
     );
 }
 
