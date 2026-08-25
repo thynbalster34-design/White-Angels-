@@ -3,67 +3,16 @@ import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
 const ROLE_ORDER = [
-    {
-        name: 'Boss',
-        emoji: '👑',
-        aliases: ['boss'],
-    },
-    {
-        name: 'Underboss',
-        emoji: '💎',
-        aliases: ['underboss', 'under boss'],
-    },
-    {
-        name: 'Righthand',
-        emoji: '🤝',
-        aliases: ['righthand', 'right hand', 'right-hand'],
-    },
-    {
-        name: 'Lefthand',
-        emoji: '🤝',
-        aliases: ['lefthand', 'left hand', 'left-hand'],
-    },
-    {
-        name: 'Headhitman',
-        emoji: '🎯',
-        aliases: ['headh​itman', 'head hitman', 'head-hitman'],
-    },
-    {
-        name: 'Hitman',
-        emoji: '🔫',
-        aliases: ['hitman'],
-    },
-    {
-        name: 'Full Member',
-        emoji: '⭐',
-        aliases: ['full member', 'fullmember'],
-    },
-    {
-        name: 'Member',
-        emoji: '👤',
-        aliases: ['member'],
-    },
-    {
-        name: 'Jr. Member',
-        emoji: '🟢',
-        aliases: [
-            'jr. member',
-            'jr member',
-            'jr-member',
-            'jrmember',
-            'junior member',
-            'juniormember',
-        ],
-    },
-    {
-        name: 'Hangaround',
-        emoji: '📦',
-        aliases: [
-            'hangaround',
-            'hang around',
-            'hang-around',
-        ],
-    },
+    { name: 'Boss', emoji: '👑', aliases: ['boss'] },
+    { name: 'Underboss', emoji: '💎', aliases: ['underboss', 'under boss'] },
+    { name: 'Righthand', emoji: '🤝', aliases: ['righthand', 'right hand', 'right-hand'] },
+    { name: 'Lefthand', emoji: '🤝', aliases: ['lefthand', 'left hand', 'left-hand'] },
+    { name: 'Headhitman', emoji: '🎯', aliases: ['headh​itman', 'head hitman', 'head-hitman'] },
+    { name: 'Hitman', emoji: '🔫', aliases: ['hitman'] },
+    { name: 'Full Member', emoji: '⭐', aliases: ['full member', 'fullmember'] },
+    { name: 'Member', emoji: '👤', aliases: ['member'] },
+    { name: 'Jr. Member', emoji: '🟢', aliases: ['jr member', 'jr. member', 'jr-member', 'jrmember', 'junior member'] },
+    { name: 'Hangaround', emoji: '📦', aliases: ['hangaround', 'hang around', 'hang-around'] },
 ];
 
 const MAIN_ROLE_ALIASES = [
@@ -84,26 +33,12 @@ function roleMatches(roleName, aliases) {
 
     return aliases.some(
         alias =>
-            normalizeRoleName(alias) ===
-            normalizedRole
+            normalizeRoleName(alias) === normalizedRole
     );
 }
 
-async function getAllRoles(guild) {
-    try {
-        await guild.roles.fetch();
-    } catch (error) {
-        logger.warn(
-            'Could not refresh guild roles, using cached roles instead:',
-            error.message
-        );
-    }
-
-    return guild.roles.cache;
-}
-
-function findRole(roles, aliases) {
-    return roles.find(role =>
+function findRole(guild, aliases) {
+    return guild.roles.cache.find(role =>
         roleMatches(role.name, aliases)
     );
 }
@@ -128,42 +63,24 @@ export default {
             const guild = interaction.guild;
 
             if (!guild) {
-                await InteractionHelper.safeEditReply(
-                    interaction,
-                    {
-                        content:
-                            '❌ Dit command kan alleen in een server gebruikt worden.',
-                    }
-                );
+                await InteractionHelper.safeEditReply(interaction, {
+                    content:
+                        '❌ Dit command kan alleen in een server gebruikt worden.',
+                });
                 return;
             }
 
-            const roles = await getAllRoles(guild);
-
-            // Zoek de hoofdrol White Angels
-            const whiteAngelsRole = findRole(
-                roles,
-                MAIN_ROLE_ALIASES
-            );
-
-            if (!whiteAngelsRole) {
+            // Vernieuw de rollen.
+            try {
+                await guild.roles.fetch();
+            } catch (error) {
                 logger.warn(
-                    `White Angels role not found. Available roles: ${roles.map(r => r.name).join(', ')}`
+                    'Could not refresh guild roles:',
+                    error.message
                 );
-
-                await InteractionHelper.safeEditReply(
-                    interaction,
-                    {
-                        content:
-                            '❌ Ik kan de **White Angels**-rol niet vinden. Controleer of de rol exact op de server aanwezig is.',
-                    }
-                );
-
-                return;
             }
 
-            // Gebruik de bestaande member cache.
-            // Alleen fetchen als deze leeg is.
+            // Vernieuw leden alleen wanneer de cache leeg is.
             if (guild.members.cache.size === 0) {
                 try {
                     await guild.members.fetch();
@@ -175,7 +92,20 @@ export default {
                 }
             }
 
-            // Alle menselijke leden met de White Angels hoofdrol.
+            const whiteAngelsRole = findRole(
+                guild,
+                MAIN_ROLE_ALIASES
+            );
+
+            if (!whiteAngelsRole) {
+                await InteractionHelper.safeEditReply(interaction, {
+                    content:
+                        '❌ Ik kan de **White Angels**-rol niet vinden.',
+                });
+                return;
+            }
+
+            // Alle White Angels leden.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
@@ -185,92 +115,86 @@ export default {
                         )
                 );
 
-            const fields = [];
+            // Zoek voor iedere rang het daadwerkelijke Role-object.
+            const rankRoles = ROLE_ORDER.map(rank => ({
+                ...rank,
+                role: findRole(
+                    guild,
+                    [rank.name, ...rank.aliases]
+                ),
+            }));
 
-            for (const roleInfo of ROLE_ORDER) {
-                const aliases = [
-                    roleInfo.name,
-                    ...roleInfo.aliases,
-                ];
+            // Maak per rang een lijst.
+            const membersByRank = new Map();
 
-                const role = findRole(
-                    roles,
-                    aliases
-                );
+            for (const rank of ROLE_ORDER) {
+                membersByRank.set(rank.name, []);
+            }
 
-                if (!role) {
-                    fields.push({
-                        name:
-                            `${roleInfo.emoji} ${roleInfo.name}`,
-                        value:
-                            '⚠️ Rol niet gevonden',
-                        inline: false,
-                    });
+            // Plaats ieder lid bij zijn hoogste White Angels-rang.
+            for (const member of whiteAngelsMembers.values()) {
+                let assignedRank = null;
 
-                    continue;
+                for (const rank of rankRoles) {
+                    if (
+                        rank.role &&
+                        member.roles.cache.has(rank.role.id)
+                    ) {
+                        assignedRank = rank;
+                        break;
+                    }
                 }
 
-                const roleMembers =
-                    whiteAngelsMembers
-                        .filter(member =>
-                            member.roles.cache.has(
-                                role.id
-                            )
-                        )
+                if (assignedRank) {
+                    membersByRank
+                        .get(assignedRank.name)
+                        .push(member);
+                }
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle('🤍 WHITE ANGELS — LEDENLIJST')
+                .setDescription(
+                    `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`
+                )
+                .setColor(0xFFFFFF);
+
+            for (const rank of ROLE_ORDER) {
+                const members =
+                    membersByRank.get(rank.name) || [];
+
+                let value = '*Geen leden*';
+
+                if (members.length > 0) {
+                    value = members
                         .sort((a, b) =>
                             a.displayName.localeCompare(
                                 b.displayName,
                                 'nl'
                             )
-                        );
+                        )
+                        .map(member => `• ${member}`)
+                        .join('\n');
+                }
 
-                const value =
-                    roleMembers.size > 0
-                        ? roleMembers
-                              .map(
-                                  member =>
-                                      `• ${member}`
-                              )
-                              .join('\n')
-                        : '*Geen leden*';
-
-                fields.push({
-                    name:
-                        `${roleInfo.emoji} ${roleInfo.name}`,
+                embed.addFields({
+                    name: `${rank.emoji} ${rank.name}`,
                     value,
                     inline: false,
                 });
             }
 
-            const embed = new EmbedBuilder({
-                title:
-                    '🤍 WHITE ANGELS — LEDENLIJST',
-
-                description:
-                    `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`,
-
-                color: 0xFFFFFF,
-
-                fields,
-
-                footer: {
-                    text:
-                        'White Angels • Ledenlijst',
-                    icon_url:
-                        interaction.client.user
-                            .displayAvatarURL(),
-                },
-
-                timestamp:
-                    new Date().toISOString(),
+            embed.setFooter({
+                text: 'White Angels • Ledenlijst',
+                icon_url:
+                    interaction.client.user.displayAvatarURL(),
             });
 
-            await InteractionHelper.safeEditReply(
-                interaction,
-                {
-                    embeds: [embed],
-                }
-            );
+            embed.setTimestamp();
+
+            await InteractionHelper.safeEditReply(interaction, {
+                embeds: [embed],
+            });
 
         } catch (error) {
             logger.error(
@@ -278,13 +202,10 @@ export default {
                 error
             );
 
-            await InteractionHelper.safeEditReply(
-                interaction,
-                {
-                    content:
-                        '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
-                }
-            ).catch(() => {});
+            await InteractionHelper.safeEditReply(interaction, {
+                content:
+                    '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
+            }).catch(() => {});
         }
     },
 };
