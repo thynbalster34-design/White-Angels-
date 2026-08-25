@@ -1,4 +1,5 @@
 import { getColor } from '../../../config/bot.js';
+
 import {
     ActionRowBuilder,
     StringSelectMenuBuilder,
@@ -17,8 +18,14 @@ import {
 } from 'discord.js';
 
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
-import { successEmbed, infoEmbed } from '../../../utils/embeds.js';
+
+import {
+    successEmbed,
+    infoEmbed,
+} from '../../../utils/embeds.js';
+
 import { logger } from '../../../utils/logger.js';
+
 import {
     TitanBotError,
     ErrorTypes,
@@ -30,7 +37,9 @@ import {
     setGuildConfig,
 } from '../../../services/config/guildConfig.js';
 
-import { getGuildTicketStats } from '../../../utils/database/tickets.js';
+import {
+    getGuildTicketStats,
+} from '../../../utils/database/tickets.js';
 
 import {
     getTicketPanelStatus,
@@ -38,39 +47,52 @@ import {
     formatPanelStatusField,
 } from '../../../utils/panelStatus.js';
 
-import { startDashboardSession } from '../../../utils/dashboardSession.js';
+import {
+    startDashboardSession,
+} from '../../../utils/dashboardSession.js';
 
 /* ============================================================
-   WHITE ANGELS
+   WHITE ANGELS CONFIG
    ============================================================ */
 
-const WHITE_ANGELS_ROLE_ID = '1437696432340467786';
+const WHITE_ANGELS_ROLE_ID =
+    '1437696432340467786';
 
-const PANEL_UPDATE_INTERVAL = 30_000;
+const PANEL_UPDATE_INTERVAL =
+    30_000;
 
-const panelUpdateIntervals = new Map();
+const panelUpdateIntervals =
+    new Map();
 
 /* ============================================================
    WHITE ANGELS LEDEN TELLEN
    ============================================================ */
 
-async function getWhiteAngelsMemberCount(guild) {
+async function getWhiteAngelsMemberCount(
+    guild
+) {
     try {
         /*
-         * Force zorgt ervoor dat de member cache
-         * opnieuw gevuld wordt.
+         * We gebruiken de huidige member-cache.
+         *
+         * Je bot registreert al:
+         * - guildMemberAdd
+         * - guildMemberRemove
+         * - guildMemberUpdate
+         *
+         * Daardoor worden rolwijzigingen normaal bijgewerkt
+         * zonder iedere 30 seconden opnieuw de hele guild
+         * via Gateway op te vragen.
          */
-        await guild.members.fetch({
-            force: true,
-        });
 
-        const count = guild.members.cache.filter(
-            member =>
-                !member.user.bot &&
-                member.roles.cache.has(
-                    WHITE_ANGELS_ROLE_ID
-                )
-        ).size;
+        const count =
+            guild.members.cache.filter(
+                member =>
+                    !member.user.bot &&
+                    member.roles.cache.has(
+                        WHITE_ANGELS_ROLE_ID
+                    )
+            ).size;
 
         logger.info(
             `White Angels member count in ${guild.name}: ${count}`
@@ -79,7 +101,7 @@ async function getWhiteAngelsMemberCount(guild) {
         return count;
     } catch (error) {
         logger.error(
-            `Failed to count White Angels members in ${guild.id}:`,
+            `Failed to count White Angels members in guild ${guild.id}:`,
             error
         );
 
@@ -91,13 +113,22 @@ async function getWhiteAngelsMemberCount(guild) {
    PANEL EMBED
    ============================================================ */
 
-async function buildPanelEmbed(config, guild) {
+async function buildPanelEmbed(
+    config,
+    guild
+) {
     const memberCount =
         await getWhiteAngelsMemberCount(
             guild
         );
 
     let statusEmoji = '🟢';
+
+    /*
+     * 0 t/m 16 = groen
+     * 17 t/m 19 = oranje
+     * 20+ = rood
+     */
 
     if (memberCount >= 20) {
         statusEmoji = '🔴';
@@ -118,10 +149,11 @@ async function buildPanelEmbed(config, guild) {
     ];
 
     /*
-     * Extra tekst die via het dashboard ingesteld is.
+     * Eventuele extra tekst die via de config is ingesteld.
      */
     const extraMessage =
-        config.ticketPanelMessage?.trim() || '';
+        config.ticketPanelMessage?.trim() ||
+        '';
 
     if (extraMessage) {
         description.push(
@@ -131,7 +163,9 @@ async function buildPanelEmbed(config, guild) {
     }
 
     return new EmbedBuilder()
-        .setTitle('White Angels')
+        .setTitle(
+            'White Angels'
+        )
         .setDescription(
             description.join('\n')
         )
@@ -147,12 +181,18 @@ async function buildPanelEmbed(config, guild) {
 function buildPanelButtonRow() {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId('create_ticket')
-            .setLabel('Sollicitatie')
+            .setCustomId(
+                'create_ticket'
+            )
+            .setLabel(
+                'Sollicitatie'
+            )
             .setStyle(
                 ButtonStyle.Primary
             )
-            .setEmoji('💪')
+            .setEmoji(
+                '💪'
+            )
     );
 }
 
@@ -168,7 +208,8 @@ async function persistPanelMessageId(
 ) {
     if (
         !messageId ||
-        guildConfig.ticketPanelMessageId === messageId
+        guildConfig.ticketPanelMessageId ===
+            messageId
     ) {
         return;
     }
@@ -186,7 +227,7 @@ async function persistPanelMessageId(
 }
 
 /* ============================================================
-   BESTAAND PANEEL ZOEKEN
+   BESTAAND PANEEL VINDEN
    ============================================================ */
 
 async function findExistingTicketPanel(
@@ -194,31 +235,38 @@ async function findExistingTicketPanel(
     guild,
     guildConfig
 ) {
-    if (!guildConfig.ticketPanelChannelId) {
+    if (
+        !guildConfig.ticketPanelChannelId
+    ) {
         return null;
     }
 
     const channel =
-        await guild.channels
-            .fetch(
-                guildConfig.ticketPanelChannelId
-            )
-            .catch(() => null);
+        await guild.channels.fetch(
+            guildConfig.ticketPanelChannelId
+        ).catch(
+            () => null
+        );
 
-    if (!channel || !channel.isTextBased()) {
+    if (
+        !channel ||
+        !channel.isTextBased()
+    ) {
         return null;
     }
 
     /*
-     * Eerst proberen via opgeslagen message ID.
+     * Eerst proberen via opgeslagen bericht-ID.
      */
-    if (guildConfig.ticketPanelMessageId) {
+    if (
+        guildConfig.ticketPanelMessageId
+    ) {
         const savedMessage =
-            await channel.messages
-                .fetch(
-                    guildConfig.ticketPanelMessageId
-                )
-                .catch(() => null);
+            await channel.messages.fetch(
+                guildConfig.ticketPanelMessageId
+            ).catch(
+                () => null
+            );
 
         if (
             savedMessage &&
@@ -235,17 +283,16 @@ async function findExistingTicketPanel(
     }
 
     /*
-     * Message ID ontbreekt of klopt niet meer.
+     * Message ID ontbreekt of bestaat niet meer.
      *
-     * Zoek dan in de recente berichten naar het
-     * botbericht met de create_ticket knop.
+     * Zoek dan in de laatste 100 berichten.
      */
     const messages =
-        await channel.messages
-            .fetch({
-                limit: 100,
-            })
-            .catch(() => null);
+        await channel.messages.fetch({
+            limit: 100,
+        }).catch(
+            () => null
+        );
 
     if (!messages) {
         return null;
@@ -267,7 +314,7 @@ async function findExistingTicketPanel(
     }
 
     /*
-     * Nieuwe message ID meteen opslaan.
+     * Gevonden ID opslaan.
      */
     await persistPanelMessageId(
         client,
@@ -312,18 +359,24 @@ async function updateExistingTicketPanel(
 
         if (!panel) {
             logger.warn(
-                `White Angels ticket panel could not be found in guild ${guild.id}`
+                `White Angels ticket panel not found in guild ${guild.id}`
             );
 
             return false;
         }
 
+        /*
+         * Nieuwe actuele embed bouwen.
+         */
         const updatedEmbed =
             await buildPanelEmbed(
                 guildConfig,
                 guild
             );
 
+        /*
+         * Bestaand bericht aanpassen.
+         */
         await panel.message.edit({
             embeds: [
                 updatedEmbed,
@@ -338,10 +391,10 @@ async function updateExistingTicketPanel(
         );
 
         return true;
+
     } catch (error) {
         logger.warn(
-            `Failed to update White Angels ticket panel in guild ${guild.id}:`,
-            error.message
+            `Failed to update White Angels ticket panel in guild ${guild.id}: ${error.message}`
         );
 
         return false;
@@ -360,6 +413,10 @@ function startTicketPanelAutoUpdate(
         return;
     }
 
+    /*
+     * Als er al een timer draait voor deze guild,
+     * geen tweede timer maken.
+     */
     if (
         panelUpdateIntervals.has(
             guild.id
@@ -369,12 +426,14 @@ function startTicketPanelAutoUpdate(
     }
 
     /*
-     * Meteen één keer uitvoeren.
+     * Meteen één keer updaten.
      */
     updateExistingTicketPanel(
         client,
         guild
-    ).catch(() => {});
+    ).catch(
+        () => {}
+    );
 
     /*
      * Daarna iedere 30 seconden.
@@ -396,7 +455,42 @@ function startTicketPanelAutoUpdate(
     );
 
     logger.info(
-        `✅ White Angels ticket panel auto-update started for ${guild.id}`
+        `✅ White Angels ticket panel auto-update started for guild ${guild.id}`
+    );
+}
+
+/* ============================================================
+   ALLE GUILDS AUTOMATISCH STARTEN
+   ============================================================ */
+
+async function startAllTicketPanelAutoUpdates(
+    client
+) {
+    if (
+        !client ||
+        !client.guilds
+    ) {
+        return;
+    }
+
+    for (
+        const guild
+        of client.guilds.cache.values()
+    ) {
+        try {
+            startTicketPanelAutoUpdate(
+                client,
+                guild
+            );
+        } catch (error) {
+            logger.warn(
+                `Could not start ticket panel updater for guild ${guild.id}: ${error.message}`
+            );
+        }
+    }
+
+    logger.info(
+        `✅ Ticket panel auto-updaters started for ${client.guilds.cache.size} guild(s)`
     );
 }
 
@@ -423,6 +517,10 @@ function stopTicketPanelAutoUpdate(
     panelUpdateIntervals.delete(
         guildId
     );
+
+    logger.info(
+        `Ticket panel auto-update stopped for guild ${guildId}`
+    );
 }
 
 /* ============================================================
@@ -440,7 +538,9 @@ async function repostTicketPanel(
             .fetch(
                 guildConfig.ticketPanelChannelId
             )
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!channel) {
         throw new TitanBotError(
@@ -458,7 +558,9 @@ async function repostTicketPanel(
 
     const sentPanel =
         await channel.send({
-            embeds: [embed],
+            embeds: [
+                embed,
+            ],
             components: [
                 buildPanelButtonRow(),
             ],
@@ -480,7 +582,7 @@ async function repostTicketPanel(
 }
 
 /* ============================================================
-   DASHBOARD BUTTONS
+   DASHBOARD BUTTON ROW
    ============================================================ */
 
 function buildButtonRow(
@@ -511,7 +613,9 @@ function buildButtonRow(
                 .setStyle(
                     ButtonStyle.Primary
                 )
-                .setEmoji('📌')
+                .setEmoji(
+                    '📌'
+                )
                 .setDisabled(
                     disabled
                 )
@@ -550,7 +654,9 @@ function buildButtonRow(
             .setStyle(
                 ButtonStyle.Secondary
             )
-            .setEmoji('🛡️')
+            .setEmoji(
+                '🛡️'
+            )
             .setDisabled(
                 disabled
             ),
@@ -565,7 +671,9 @@ function buildButtonRow(
             .setStyle(
                 ButtonStyle.Danger
             )
-            .setEmoji('🗑️')
+            .setEmoji(
+                '🗑️'
+            )
             .setDisabled(
                 disabled
             )
@@ -577,11 +685,15 @@ function buildButtonRow(
 }
 
 /* ============================================================
-   DASHBOARD
+   DASHBOARD HELPERS
    ============================================================ */
 
-function formatCloseDuration(ms) {
-    if (ms == null) {
+function formatCloseDuration(
+    ms
+) {
+    if (
+        ms == null
+    ) {
         return '`N/A`';
     }
 
@@ -596,7 +708,9 @@ function formatCloseDuration(ms) {
                 60_000
         );
 
-    if (hours > 0) {
+    if (
+        hours > 0
+    ) {
         return `${hours}h ${minutes}m`;
     }
 
@@ -645,7 +759,10 @@ function buildDashboardEmbed(
 
     const panelMsg =
         `\`${rawMsg.length > 60
-            ? rawMsg.substring(0, 60) + '…'
+            ? rawMsg.substring(
+                0,
+                60
+            ) + '…'
             : rawMsg}\``;
 
     const panelStatusValue =
@@ -656,24 +773,24 @@ function buildDashboardEmbed(
     const openTickets =
         ticketStats
             ? String(
-                  ticketStats.openCount
-              )
+                ticketStats.openCount
+            )
             : '`—`';
 
     const avgCloseTime =
         ticketStats
             ? formatCloseDuration(
-                  ticketStats.avgCloseTimeMs
-              )
+                ticketStats.avgCloseTimeMs
+            )
             : '`—`';
 
     const feedbackSummary =
         ticketStats?.feedbackCount
             ? `${ticketStats.avgRating}/5 (${ticketStats.feedbackCount} rating${
-                  ticketStats.feedbackCount !== 1
-                      ? 's'
-                      : ''
-              })`
+                ticketStats.feedbackCount !== 1
+                    ? 's'
+                    : ''
+            })`
             : '`No ratings yet`';
 
     return new EmbedBuilder()
@@ -688,95 +805,145 @@ function buildDashboardEmbed(
         )
         .addFields(
             {
-                name: 'Panel Status',
-                value: panelStatusValue,
-                inline: false,
+                name:
+                    'Panel Status',
+                value:
+                    panelStatusValue,
+                inline:
+                    false,
             },
             {
-                name: 'Panel Channel',
-                value: panelChannel,
-                inline: true,
+                name:
+                    'Panel Channel',
+                value:
+                    panelChannel,
+                inline:
+                    true,
             },
             {
-                name: 'Staff Role',
-                value: staffRole,
-                inline: true,
+                name:
+                    'Staff Role',
+                value:
+                    staffRole,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
-                name: 'Open Tickets Category',
-                value: openCategory,
-                inline: true,
+                name:
+                    'Open Tickets Category',
+                value:
+                    openCategory,
+                inline:
+                    true,
             },
             {
-                name: 'Closed Tickets Category',
-                value: closedCategory,
-                inline: true,
+                name:
+                    'Closed Tickets Category',
+                value:
+                    closedCategory,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
-                name: 'Panel Message',
-                value: panelMsg,
-                inline: false,
+                name:
+                    'Panel Message',
+                value:
+                    panelMsg,
+                inline:
+                    false,
             },
             {
-                name: 'Button Label',
-                value: '`Sollicitatie`',
-                inline: true,
+                name:
+                    'Button Label',
+                value:
+                    '`Sollicitatie`',
+                inline:
+                    true,
             },
             {
-                name: 'Max Tickets/User',
-                value: String(
-                    config.maxTicketsPerUser ||
+                name:
+                    'Max Tickets/User',
+                value:
+                    String(
+                        config.maxTicketsPerUser ||
                         3
-                ),
-                inline: true,
+                    ),
+                inline:
+                    true,
             },
             {
-                name: 'DM on Close',
+                name:
+                    'DM on Close',
                 value:
                     config.dmOnClose !== false
                         ? 'Enabled'
                         : 'Disabled',
-                inline: true,
+                inline:
+                    true,
             },
             {
-                name: 'Ticket Logs Channel',
-                value: ticketLogsChannel,
-                inline: true,
+                name:
+                    'Ticket Logs Channel',
+                value:
+                    ticketLogsChannel,
+                inline:
+                    true,
             },
             {
-                name: 'Transcript Channel',
-                value: transcriptChannel,
-                inline: true,
+                name:
+                    'Transcript Channel',
+                value:
+                    transcriptChannel,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
-                name: 'Open Tickets',
-                value: openTickets,
-                inline: true,
+                name:
+                    'Open Tickets',
+                value:
+                    openTickets,
+                inline:
+                    true,
             },
             {
-                name: 'Avg Close Time',
-                value: avgCloseTime,
-                inline: true,
+                name:
+                    'Avg Close Time',
+                value:
+                    avgCloseTime,
+                inline:
+                    true,
             },
             {
-                name: 'Feedback Rating',
-                value: feedbackSummary,
-                inline: true,
+                name:
+                    'Feedback Rating',
+                value:
+                    feedbackSummary,
+                inline:
+                    true,
             }
         )
         .setFooter({
@@ -786,7 +953,13 @@ function buildDashboardEmbed(
         .setTimestamp();
 }
 
-function buildSelectMenu(guildId) {
+/* ============================================================
+   SELECT MENU
+   ============================================================ */
+
+function buildSelectMenu(
+    guildId
+) {
     return new StringSelectMenuBuilder()
         .setCustomId(
             `ticket_config_${guildId}`
@@ -805,7 +978,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'panel_message'
                 )
-                .setEmoji('📝'),
+                .setEmoji(
+                    '📝'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -817,7 +992,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'button_label'
                 )
-                .setEmoji('🏷️'),
+                .setEmoji(
+                    '🏷️'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -829,7 +1006,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'open_category'
                 )
-                .setEmoji('📁'),
+                .setEmoji(
+                    '📁'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -841,7 +1020,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'closed_category'
                 )
-                .setEmoji('📂'),
+                .setEmoji(
+                    '📂'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -853,7 +1034,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'max_tickets'
                 )
-                .setEmoji('🔢'),
+                .setEmoji(
+                    '🔢'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -865,7 +1048,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'logs_channel'
                 )
-                .setEmoji('🎫'),
+                .setEmoji(
+                    '🎫'
+                ),
 
             new StringSelectMenuOptionBuilder()
                 .setLabel(
@@ -877,7 +1062,9 @@ function buildSelectMenu(guildId) {
                 .setValue(
                     'transcript_channel'
                 )
-                .setEmoji('📜')
+                .setEmoji(
+                    '📜'
+                )
         );
 }
 
@@ -939,11 +1126,13 @@ async function refreshDashboard(
                 ),
             ],
         }
-    ).catch(() => {});
+    ).catch(
+        () => {}
+    );
 }
 
 /* ============================================================
-   EXPORT
+   DEFAULT EXPORT
    ============================================================ */
 
 export default {
@@ -975,8 +1164,8 @@ export default {
             }
 
             /*
-             * Start auto updater elke keer dat
-             * het dashboard geopend wordt.
+             * Ook bij het openen van /ticket dashboard
+             * starten we de updater.
              */
             startTicketPanelAutoUpdate(
                 client,
@@ -1035,29 +1224,12 @@ export default {
                         customId ===
                             `ticket_cfg_delete_${guildId}`,
 
+                /*
+                 * Hier laat ik je bestaande dashboard-systeem
+                 * de componenten verder afhandelen.
+                 */
                 onSelect:
-                    async selectInteraction => {
-                        /*
-                         * Dashboard instellingen worden
-                         * hier verwerkt door je bestaande
-                         * handlers.
-                         */
-                        switch (
-                            selectInteraction.values[0]
-                        ) {
-                            case 'panel_message':
-                                await selectInteraction.reply({
-                                    content:
-                                        'Gebruik je bestaande panel message handler.',
-                                    flags:
-                                        MessageFlags.Ephemeral,
-                                });
-                                break;
-
-                            default:
-                                break;
-                        }
-                    },
+                    async () => {},
 
                 onButton:
                     async btnInteraction => {
@@ -1065,39 +1237,21 @@ export default {
                             btnInteraction.customId ===
                             `ticket_cfg_repost_${guildId}`
                         ) {
-                            const sent =
-                                await repostTicketPanel(
-                                    client,
-                                    interaction.guild,
-                                    guildConfig,
-                                    guildId
-                                );
+                            await btnInteraction.deferUpdate();
 
-                            await btnInteraction.reply({
-                                embeds: [
-                                    successEmbed(
-                                        'Panel Reposted',
-                                        `Panel geplaatst in <#${guildConfig.ticketPanelChannelId}>.`
-                                    ),
-                                ],
-                                flags:
-                                    MessageFlags.Ephemeral,
-                            });
+                            await repostTicketPanel(
+                                client,
+                                interaction.guild,
+                                guildConfig,
+                                guildId
+                            );
 
-                        } else if (
-                            btnInteraction.customId ===
-                            `ticket_cfg_delete_${guildId}`
-                        ) {
-                            await btnInteraction.reply({
-                                embeds: [
-                                    infoEmbed(
-                                        'Ticket System',
-                                        'Gebruik je bestaande Delete System handler.'
-                                    ),
-                                ],
-                                flags:
-                                    MessageFlags.Ephemeral,
-                            });
+                            await refreshDashboard(
+                                interaction,
+                                guildConfig,
+                                guildId,
+                                client
+                            );
                         }
                     },
             });
@@ -1124,8 +1278,13 @@ export default {
     },
 };
 
+/* ============================================================
+   EXPORTS
+   ============================================================ */
+
 export {
     startTicketPanelAutoUpdate,
     stopTicketPanelAutoUpdate,
     updateExistingTicketPanel,
+    startAllTicketPanelAutoUpdates,
 };
