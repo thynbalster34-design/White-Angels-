@@ -1,5 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed } from '../../utils/embeds.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
@@ -25,11 +24,11 @@ function normalizeRoleName(name) {
 }
 
 function findRole(guild, wantedName) {
-    const wanted = normalizeRoleName(wantedName);
+    const normalizedWanted = normalizeRoleName(wantedName);
 
     return guild.roles.cache.find(
         role =>
-            normalizeRoleName(role.name) === wanted
+            normalizeRoleName(role.name) === normalizedWanted
     );
 }
 
@@ -53,17 +52,15 @@ export default {
             const guild = interaction.guild;
 
             if (!guild) {
-                return InteractionHelper.safeEditReply(
-                    interaction,
-                    {
-                        content:
-                            '❌ Dit command kan alleen in een server gebruikt worden.',
-                    }
-                );
+                await InteractionHelper.safeEditReply(interaction, {
+                    content:
+                        '❌ Dit command kan alleen in een server gebruikt worden.',
+                });
+                return;
             }
 
-            // Gebruik de bestaande leden-cache.
-            // Alleen fetchen wanneer de cache leeg is.
+            // Gebruik de bestaande cache.
+            // Alleen fetchen als de cache leeg is.
             if (guild.members.cache.size === 0) {
                 try {
                     await guild.members.fetch();
@@ -79,16 +76,13 @@ export default {
                 findRole(guild, MAIN_ROLE);
 
             if (!whiteAngelsRole) {
-                return InteractionHelper.safeEditReply(
-                    interaction,
-                    {
-                        content:
-                            `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
-                    }
-                );
+                await InteractionHelper.safeEditReply(interaction, {
+                    content:
+                        `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
+                });
+                return;
             }
 
-            // Alleen leden met de White Angels-hoofdrol.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
@@ -98,23 +92,16 @@ export default {
                         )
                 );
 
-            const embed = createEmbed({
-                title:
-                    '🤍 WHITE ANGELS — LEDENLIJST',
-                description:
-                    `\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**`,
-                color: '#FFFFFF',
-            });
+            const fields = [];
 
-            // Elke rang als apart veld.
             for (const roleInfo of ROLE_ORDER) {
                 const role =
                     findRole(guild, roleInfo.name);
 
                 if (!role) {
-                    embed.addFields({
+                    fields.push({
                         name: `${roleInfo.emoji} ${roleInfo.name}`,
-                        value: '*Rol niet gevonden*',
+                        value: '⚠️ Rol niet gevonden',
                         inline: false,
                     });
 
@@ -124,9 +111,7 @@ export default {
                 const roleMembers =
                     whiteAngelsMembers
                         .filter(member =>
-                            member.roles.cache.has(
-                                role.id
-                            )
+                            member.roles.cache.has(role.id)
                         )
                         .sort((a, b) =>
                             a.displayName.localeCompare(
@@ -135,40 +120,39 @@ export default {
                             )
                         );
 
-                let value;
+                const value =
+                    roleMembers.size > 0
+                        ? roleMembers
+                              .map(member => `• ${member}`)
+                              .join('\n')
+                        : '*Geen leden*';
 
-                if (roleMembers.size === 0) {
-                    value = '*Geen leden*';
-                } else {
-                    value = roleMembers
-                        .map(member => `• ${member}`)
-                        .join('\n');
-                }
-
-                embed.addFields({
-                    name:
-                        `${roleInfo.emoji} ${roleInfo.name}`,
+                fields.push({
+                    name: `${roleInfo.emoji} ${roleInfo.name}`,
                     value,
                     inline: false,
                 });
             }
 
-            embed.setFooter({
-                text:
-                    'White Angels • Ledenlijst',
-                iconURL:
-                    interaction.client.user
-                        .displayAvatarURL(),
+            // Gebruik de EmbedBuilder-constructor rechtstreeks.
+            // Hierdoor worden de globale sanitize-functies uit embeds.js
+            // niet aangeroepen en blijven de emoji's behouden.
+            const embed = new EmbedBuilder({
+                title: '🤍 WHITE ANGELS — LEDENLIJST',
+                description: `\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`,
+                color: 0xFFFFFF,
+                fields,
+                footer: {
+                    text: 'White Angels • Ledenlijst',
+                    icon_url:
+                        interaction.client.user.displayAvatarURL(),
+                },
+                timestamp: new Date().toISOString(),
             });
 
-            embed.setTimestamp();
-
-            await InteractionHelper.safeEditReply(
-                interaction,
-                {
-                    embeds: [embed],
-                }
-            );
+            await InteractionHelper.safeEditReply(interaction, {
+                embeds: [embed],
+            });
 
         } catch (error) {
             logger.error(
@@ -176,13 +160,10 @@ export default {
                 error
             );
 
-            await InteractionHelper.safeEditReply(
-                interaction,
-                {
-                    content:
-                        '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
-                }
-            ).catch(() => {});
+            await InteractionHelper.safeEditReply(interaction, {
+                content:
+                    '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
+            }).catch(() => {});
         }
     },
 };
