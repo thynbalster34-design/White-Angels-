@@ -139,8 +139,7 @@ export default {
             // niet aangeroepen en blijven de emoji's behouden.
             const embed = new EmbedBuilder({
                 title: '🤍 WHITE ANGELS — LEDENLIJST',
-                description: `\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`,
-                color: 0xFFFFFF,
+description: `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`,                color: 0xFFFFFF,
                 fields,
                 footer: {
                     text: 'White Angels • Ledenlijst',
