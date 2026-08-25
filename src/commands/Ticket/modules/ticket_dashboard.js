@@ -71,12 +71,13 @@ const panelUpdateIntervals =
 async function getWhiteAngelsMemberCount(guild) {
     try {
         /*
-         * Haal de members opnieuw op zodat role changes
-         * ook bij offline leden worden meegenomen.
+         * Probeer rechtstreeks members uit Discord op te halen.
+         *
+         * Voor jouw server is 1000 ruim voldoende.
          */
         const members =
-            await guild.members.fetch({
-                force: true,
+            await guild.members.list({
+                limit: 1000,
             });
 
         /*
@@ -100,9 +101,10 @@ async function getWhiteAngelsMemberCount(guild) {
         );
 
         return count;
+
     } catch (error) {
         logger.error(
-            `Failed to count White Angels members in guild ${guild.id}:`,
+            `Failed to get White Angels member count in guild ${guild.id}:`,
             error
         );
 
@@ -111,10 +113,12 @@ async function getWhiteAngelsMemberCount(guild) {
 }
 
 /* ============================================================
-   SOLLICITATIE STATUS
+   STATUS
    ============================================================ */
 
-function getApplicationStatus(memberCount) {
+function getApplicationStatus(
+    memberCount
+) {
     if (memberCount >= 20) {
         return '🔴';
     }
@@ -229,7 +233,7 @@ async function persistPanelMessageId(
 }
 
 /* ============================================================
-   BESTAAND PANEEL VINDEN
+   BESTAAND PANEL VINDEN
    ============================================================ */
 
 async function findExistingTicketPanel(
@@ -264,7 +268,7 @@ async function findExistingTicketPanel(
     }
 
     /* --------------------------------------------------------
-       1. Opgeslagen message ID
+       1. OPGESLAGEN MESSAGE ID
        -------------------------------------------------------- */
 
     if (
@@ -296,7 +300,7 @@ async function findExistingTicketPanel(
     }
 
     /* --------------------------------------------------------
-       2. Laatste 100 berichten zoeken
+       2. LAATSTE 100 BERICHTEN
        -------------------------------------------------------- */
 
     const messages =
@@ -327,7 +331,7 @@ async function findExistingTicketPanel(
         null;
 
     /* --------------------------------------------------------
-       3. Zoek create_ticket knop
+       3. CREATE_TICKET BUTTON
        -------------------------------------------------------- */
 
     panelMessage =
@@ -344,7 +348,7 @@ async function findExistingTicketPanel(
         );
 
     /* --------------------------------------------------------
-       4. Zoek White Angels / Support Tickets
+       4. WHITE ANGELS / SUPPORT TICKETS
        -------------------------------------------------------- */
 
     if (!panelMessage) {
@@ -381,15 +385,14 @@ async function findExistingTicketPanel(
     }
 
     /* --------------------------------------------------------
-       5. Laatste fallback: botbericht met embed
+       5. FALLBACK: BOT EMBED
        -------------------------------------------------------- */
 
     if (!panelMessage) {
         panelMessage =
             botMessages.find(
                 message =>
-                    message.embeds?.length >
-                    0
+                    message.embeds?.length > 0
             );
     }
 
@@ -419,7 +422,7 @@ async function findExistingTicketPanel(
 }
 
 /* ============================================================
-   LIVE PANEL UPDATEN
+   PANEL UPDATEN
    ============================================================ */
 
 async function updateExistingTicketPanel(
@@ -501,7 +504,7 @@ function startTicketPanelAutoUpdate(
     }
 
     /*
-     * Meteen één keer uitvoeren.
+     * Meteen één keer updaten.
      */
     updateExistingTicketPanel(
         client,
@@ -608,7 +611,7 @@ async function repostTicketPanel(
         throw new TitanBotError(
             'Panel channel missing',
             ErrorTypes.CONFIGURATION,
-            'The configured ticket panel channel no longer exists. Set a new panel channel from the dashboard.'
+            'The configured ticket panel channel no longer exists.'
         );
     }
 
@@ -1222,7 +1225,7 @@ async function handlePanelMessage(
                             )
                             .setValue(
                                 guildConfig.ticketPanelMessage ||
-                                ''
+                                    ''
                             )
                             .setMaxLength(
                                 2000
@@ -1840,7 +1843,9 @@ async function handleMaxTickets(
         );
 
     if (
-        Number.isNaN(newMax) ||
+        Number.isNaN(
+            newMax
+        ) ||
         newMax < 1 ||
         newMax > 10
     ) {
@@ -2474,7 +2479,7 @@ async function handleDeleteSystem(
 }
 
 /* ============================================================
-   DEFAULT EXPORT
+   DASHBOARD
    ============================================================ */
 
 export default {
@@ -2545,11 +2550,12 @@ export default {
                 );
 
             const selectRow =
-                new ActionRowBuilder().addComponents(
-                    buildSelectMenu(
-                        guildId
-                    )
-                );
+                new ActionRowBuilder()
+                    .addComponents(
+                        buildSelectMenu(
+                            guildId
+                        )
+                    );
 
             await startDashboardSession({
                 interaction,
@@ -2585,7 +2591,8 @@ export default {
                 onSelect:
                     async selectInteraction => {
                         const selectedOption =
-                            selectInteraction.values[0];
+                            selectInteraction
+                                .values[0];
 
                         switch (
                             selectedOption
@@ -2767,4 +2774,4 @@ export {
     updateExistingTicketPanel,
     startAllTicketPanelAutoUpdates,
     repostTicketPanel,
-}; 
+};
