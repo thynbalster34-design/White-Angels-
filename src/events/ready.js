@@ -20,12 +20,9 @@ import {
   initRiffyAfterReady,
 } from "../services/music/riffySetup.js";
 
-/* ============================================================
-   WHITE ANGELS ROLE
-   ============================================================ */
-
-const WHITE_ANGELS_ROLE_ID =
-  "1437696432340467786";
+import {
+  startSavedMemberListUpdater,
+} from "../commands/Core/ledenlijst.js";
 
 /* ============================================================
    CLIENT READY
@@ -58,78 +55,22 @@ export default {
       );
 
       /* ========================================================
-         SERVER MEMBERS OPHALEN
+         WHITE ANGELS LEDENLIJST AUTO-UPDATER
          ======================================================== */
 
-      for (
-        const guild
-        of client.guilds.cache.values()
-      ) {
-        try {
-          const members =
-            await guild.members.fetch();
+      try {
+        await startSavedMemberListUpdater(
+          client
+        );
 
-          startupLog(
-            `✅ Members loaded for ${guild.name}: ${members.size}`
-          );
-
-          /* ====================================================
-             WHITE ANGELS ROL CONTROLEREN
-             ==================================================== */
-
-          const whiteAngelsRole =
-            guild.roles.cache.get(
-              WHITE_ANGELS_ROLE_ID
-            );
-
-          if (!whiteAngelsRole) {
-            startupLog(
-              `❌ White Angels role not found: ${WHITE_ANGELS_ROLE_ID}`
-            );
-
-            continue;
-          }
-
-          startupLog(
-            `🤍 White Angels role found: ${whiteAngelsRole.name}`
-          );
-
-          /* ====================================================
-             WHITE ANGELS LEDEN TELLEN
-             ==================================================== */
-
-          const whiteAngelsMembers =
-            members.filter(
-              member =>
-                !member.user.bot &&
-                member.roles.cache.has(
-                  WHITE_ANGELS_ROLE_ID
-                )
-            );
-
-          startupLog(
-            `🤍 White Angels members detected: ${whiteAngelsMembers.size}`
-          );
-
-          /* ====================================================
-             WHITE ANGELS LEDEN LOGGEN
-             ==================================================== */
-
-          for (
-            const member
-            of whiteAngelsMembers.values()
-          ) {
-            startupLog(
-              `🤍 White Angels member: ${member.user.tag} (${member.id})`
-            );
-          }
-
-        } catch (error) {
-          logger.error(
-            `Failed to fetch members for ${guild.name}:`,
-            error
-          );
-        }
+        startupLog(
+          "✅ White Angels ledenlijst auto-updater gestart"
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not start saved White Angels ledenlijst updater:",
+          error
+        );
       }
 
       /* ========================================================
@@ -210,7 +151,7 @@ export default {
       );
 
       /* ========================================================
-         READY
+         KLAAR
          ======================================================== */
 
       startupLog(
