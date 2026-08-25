@@ -15,8 +15,26 @@ const ROLE_ORDER = [
     { name: 'Hitman', emoji: '🔫', aliases: ['hitman'] },
     { name: 'Full Member', emoji: '⭐', aliases: ['full member', 'fullmember'] },
     { name: 'Member', emoji: '👤', aliases: ['member'] },
-    { name: 'Jr. Member', emoji: '🟢', aliases: ['jr member', 'jr. member', 'jr-member', 'jrmember', 'junior member'] },
-    { name: 'Hangaround', emoji: '📦', aliases: ['hangaround', 'hang around', 'hang-around'] },
+    {
+        name: 'Jr. Member',
+        emoji: '🟢',
+        aliases: [
+            'jr member',
+            'jr. member',
+            'jr-member',
+            'jrmember',
+            'junior member',
+        ],
+    },
+    {
+        name: 'Hangaround',
+        emoji: '📦',
+        aliases: [
+            'hangaround',
+            'hang around',
+            'hang-around',
+        ],
+    },
 ];
 
 const MAIN_ROLE_ALIASES = [
@@ -25,7 +43,7 @@ const MAIN_ROLE_ALIASES = [
     'white-angels',
 ];
 
-// Eén actieve automatische lijst per guild.
+// Eén actieve lijst per server.
 const activeLists = new Map();
 
 function normalizeRoleName(name) {
@@ -36,26 +54,55 @@ function normalizeRoleName(name) {
 }
 
 function roleMatches(roleName, aliases) {
-    const normalizedRole = normalizeRoleName(roleName);
+    const normalizedRole =
+        normalizeRoleName(roleName);
 
     return aliases.some(
-        alias => normalizeRoleName(alias) === normalizedRole
+        alias =>
+            normalizeRoleName(alias) ===
+            normalizedRole
     );
 }
 
 function findRole(guild, aliases) {
-    return guild.roles.cache.find(role =>
-        roleMatches(role.name, aliases)
+    return guild.roles.cache.find(
+        role =>
+            roleMatches(
+                role.name,
+                aliases
+            )
     );
 }
 
-async function buildMemberListEmbed(guild, client) {
-    // Rollen uit de cache gebruiken.
-    // GuildMemberUpdate houdt de member/rol-cache actueel.
-    const whiteAngelsRole = findRole(
-        guild,
-        MAIN_ROLE_ALIASES
-    );
+async function refreshGuildMembers(guild) {
+    try {
+        await guild.members.fetch({
+            force: true,
+        });
+
+        return true;
+    } catch (error) {
+        logger.warn(
+            `Failed to refresh members for guild ${guild.id}:`,
+            error.message
+        );
+
+        return false;
+    }
+}
+
+async function buildMemberListEmbed(
+    guild,
+    client
+) {
+    // Iedere update opnieuw members ophalen.
+    await refreshGuildMembers(guild);
+
+    const whiteAngelsRole =
+        findRole(
+            guild,
+            MAIN_ROLE_ALIASES
+        );
 
     if (!whiteAngelsRole) {
         throw new Error(
@@ -63,8 +110,6 @@ async function buildMemberListEmbed(guild, client) {
         );
     }
 
-    // Alle leden met de White Angels-hoofdrol.
-    // Offline leden worden meegenomen zolang de member-cache gevuld is.
     const whiteAngelsMembers =
         guild.members.cache.filter(
             member =>
@@ -74,21 +119,34 @@ async function buildMemberListEmbed(guild, client) {
                 )
         );
 
-    const rankRoles = ROLE_ORDER.map(rank => ({
-        ...rank,
-        role: findRole(
-            guild,
-            [rank.name, ...rank.aliases]
-        ),
-    }));
+    const rankRoles =
+        ROLE_ORDER.map(rank => ({
+            ...rank,
+            role: findRole(
+                guild,
+                [
+                    rank.name,
+                    ...rank.aliases,
+                ]
+            ),
+        }));
 
-    const membersByRank = new Map();
+    const membersByRank =
+        new Map();
 
-    for (const rank of ROLE_ORDER) {
-        membersByRank.set(rank.name, []);
+    for (
+        const rank
+        of ROLE_ORDER
+    ) {
+        membersByRank.set(
+            rank.name,
+            []
+        );
     }
 
-    // Ieder lid krijgt alleen de hoogste rang.
+    /*
+     * Elk lid komt alleen onder zijn hoogste rang.
+     */
     for (
         const member
         of whiteAngelsMembers.values()
@@ -139,16 +197,20 @@ async function buildMemberListEmbed(guild, client) {
                 rank.name
             ) || [];
 
-        members.sort((a, b) =>
-            a.displayName.localeCompare(
-                b.displayName,
-                'nl'
-            )
+        members.sort(
+            (a, b) =>
+                a.displayName.localeCompare(
+                    b.displayName,
+                    'nl'
+                )
         );
 
-        let value = '*Geen leden*';
+        let value =
+            '*Geen leden*';
 
-        if (members.length > 0) {
+        if (
+            members.length > 0
+        ) {
             value = members
                 .map(
                     member =>
@@ -177,28 +239,137 @@ async function buildMemberListEmbed(guild, client) {
     return embed;
 }
 
-function stopExistingList(guildId) {
-    const existing = activeLists.get(guildId);
+function stopExistingList(
+    guildId
+) {
+    const existing =
+        activeLists.get(
+            guildId
+        );
 
     if (!existing) {
         return;
     }
 
-    clearInterval(existing.interval);
-    activeLists.delete(guildId);
+    clearInterval(
+        existing.interval
+    );
+
+    activeLists.delete(
+        guildId
+    );
+}
+
+function startMemberListUpdater(
+    guild,
+    channel,
+    message,
+    client
+) {
+    stopExistingList(
+        guild.id
+    );
+
+    let updating = false;
+
+    const interval =
+        setInterval(
+            async () => {
+                if (updating) {
+                    return;
+                }
+
+                updating = true;
+
+                try {
+                    /*
+                     * Zorg dat het bericht nog bestaat.
+                     */
+                    const currentMessage =
+                        await channel.messages
+                            .fetch(
+                                message.id
+                            )
+                            .catch(
+                                () => null
+                            );
+
+                    if (!currentMessage) {
+                        logger.warn(
+                            `White Angels ledenlijst verwijderd in guild ${guild.id}.`
+                        );
+
+                        stopExistingList(
+                            guild.id
+                        );
+
+                        return;
+                    }
+
+                    /*
+                     * Nieuwe versie van de lijst maken.
+                     * buildMemberListEmbed haalt de members
+                     * opnieuw op, dus rolwijzigingen worden
+                     * meegenomen.
+                     */
+                    const updatedEmbed =
+                        await buildMemberListEmbed(
+                            guild,
+                            client
+                        );
+
+                    await currentMessage.edit({
+                        embeds: [
+                            updatedEmbed,
+                        ],
+                    });
+
+                    logger.info(
+                        `✅ White Angels ledenlijst bijgewerkt in ${guild.name}`
+                    );
+                } catch (error) {
+                    logger.warn(
+                        `Failed to update White Angels ledenlijst in guild ${guild.id}:`,
+                        error.message
+                    );
+                } finally {
+                    updating = false;
+                }
+            },
+            30000
+        );
+
+    activeLists.set(
+        guild.id,
+        {
+            messageId:
+                message.id,
+
+            channelId:
+                channel.id,
+
+            interval,
+        }
+    );
 }
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('ledenlijst')
+        .setName(
+            'ledenlijst'
+        )
         .setDescription(
             'Toont de White Angels ledenlijst'
         )
-        .setDMPermission(false),
+        .setDMPermission(
+            false
+        ),
 
     category: 'Core',
 
-    async execute(interaction) {
+    async execute(
+        interaction
+    ) {
         const deferSuccess =
             await InteractionHelper.safeDefer(
                 interaction
@@ -209,7 +380,8 @@ export default {
         }
 
         try {
-            const guild = interaction.guild;
+            const guild =
+                interaction.guild;
 
             if (!guild) {
                 await InteractionHelper.safeEditReply(
@@ -222,26 +394,6 @@ export default {
 
                 return;
             }
-
-            // Eén volledige member fetch bij het plaatsen
-            // van de lijst zodat offline leden beschikbaar zijn.
-            try {
-                await guild.members.fetch();
-            } catch (error) {
-                logger.error(
-                    'Failed to fetch guild members:',
-                    error
-                );
-            }
-
-            // Eerst een eventueel oude automatische lijst stoppen.
-            stopExistingList(guild.id);
-
-            const embed =
-                await buildMemberListEmbed(
-                    guild,
-                    interaction.client
-                );
 
             if (
                 !interaction.channel ||
@@ -258,7 +410,29 @@ export default {
                 return;
             }
 
-            // Ephemeral bevestiging.
+            /*
+             * Eerst volledig verversen.
+             */
+            await refreshGuildMembers(
+                guild
+            );
+
+            /*
+             * Eventuele oude updater stoppen.
+             */
+            stopExistingList(
+                guild.id
+            );
+
+            const embed =
+                await buildMemberListEmbed(
+                    guild,
+                    interaction.client
+                );
+
+            /*
+             * Antwoord op de slash command.
+             */
             await InteractionHelper.safeEditReply(
                 interaction,
                 {
@@ -267,61 +441,29 @@ export default {
                 }
             );
 
-            // Normaal bericht in het kanaal.
+            /*
+             * Normaal bericht in het kanaal.
+             */
             const listMessage =
                 await interaction.channel.send({
-                    embeds: [embed],
+                    embeds: [
+                        embed,
+                    ],
                 });
 
-            // Automatisch iedere 30 seconden vernieuwen.
-            const interval = setInterval(
-                async () => {
-                    try {
-                        // Controleer of het bericht nog bestaat.
-                        const currentMessage =
-                            await interaction.channel.messages
-                                .fetch(listMessage.id)
-                                .catch(() => null);
-
-                        if (!currentMessage) {
-                            stopExistingList(
-                                guild.id
-                            );
-                            return;
-                        }
-
-                        const updatedEmbed =
-                            await buildMemberListEmbed(
-                                guild,
-                                interaction.client
-                            );
-
-                        await currentMessage.edit({
-                            embeds: [
-                                updatedEmbed,
-                            ],
-                        });
-                    } catch (error) {
-                        logger.warn(
-                            `Failed to update White Angels ledenlijst in guild ${guild.id}:`,
-                            error.message
-                        );
-                    }
-                },
-                30000
+            /*
+             * Automatische updater starten.
+             */
+            startMemberListUpdater(
+                guild,
+                interaction.channel,
+                listMessage,
+                interaction.client
             );
 
-            activeLists.set(
-                guild.id,
-                {
-                    messageId:
-                        listMessage.id,
-                    channelId:
-                        interaction.channel.id,
-                    interval,
-                }
+            logger.info(
+                `✅ White Angels ledenlijst updater gestart voor guild ${guild.id}`
             );
-
         } catch (error) {
             logger.error(
                 'Ledenlijst command error:',
@@ -334,7 +476,9 @@ export default {
                     content:
                         '❌ Er ging iets mis bij het plaatsen van de ledenlijst.',
                 }
-            ).catch(() => {});
+            ).catch(
+                () => {}
+            );
         }
     },
 };
