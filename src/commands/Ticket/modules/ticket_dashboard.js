@@ -8,7 +8,6 @@ import {
     TextInputStyle,
     RoleSelectMenuBuilder,
     ChannelSelectMenuBuilder,
-    UserSelectMenuBuilder,
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
@@ -43,55 +42,65 @@ import {
 import { startDashboardSession } from '../../../utils/dashboardSession.js';
 
 /* ============================================================
-   AUTO UPDATE
+   WHITE ANGELS ROLE
+   ============================================================ */
+
+const WHITE_ANGELS_ROLE_ID =
+    '1437696432340467786';
+
+/* ============================================================
+   PANEL AUTO UPDATE
    ============================================================ */
 
 const panelUpdateIntervals = new Map();
 
 /* ============================================================
-   ROLE / MEMBER HELPERS
+   WHITE ANGELS MEMBER COUNT
    ============================================================ */
-
-function findWhiteAngelsRole(guild) {
-    return guild.roles.cache.find(
-        role =>
-            role.name.trim().toLowerCase() ===
-            'white angels'
-    );
-}
 
 async function getWhiteAngelsMemberCount(guild) {
     try {
-        // Haal alle leden op zodat offline leden ook meetellen.
+        /*
+         * Alle members ophalen zodat offline leden
+         * ook meegenomen worden.
+         */
         await guild.members.fetch();
 
-        const role = findWhiteAngelsRole(guild);
-
-        if (!role) {
-            logger.warn(
-                `White Angels role not found in guild ${guild.id}`
-            );
-
-            return 0;
-        }
-
-        return guild.members.cache.filter(
+        const count = guild.members.cache.filter(
             member =>
                 !member.user.bot &&
-                member.roles.cache.has(role.id)
+                member.roles.cache.has(
+                    WHITE_ANGELS_ROLE_ID
+                )
         ).size;
+
+        logger.info(
+            `White Angels member count for ${guild.name}: ${count}`
+        );
+
+        return count;
     } catch (error) {
-        logger.warn(
-            `Could not count White Angels members in guild ${guild.id}: ${error.message}`
+        logger.error(
+            `Could not count White Angels members in guild ${guild.id}:`,
+            error
         );
 
         return 0;
     }
 }
 
-async function buildPanelEmbed(config, guild) {
+/* ============================================================
+   PANEL EMBED
+   ============================================================ */
+
+async function buildPanelEmbed(
+    config,
+    guild
+) {
     const memberCount =
-        await getWhiteAngelsMemberCount(guild);
+        await getWhiteAngelsMemberCount(
+            guild
+        );
 
     let statusEmoji = '🟢';
 
@@ -102,10 +111,10 @@ async function buildPanelEmbed(config, guild) {
     }
 
     const extraMessage =
-        config.ticketPanelMessage ||
+        config.ticketPanelMessage?.trim() ||
         '';
 
-    const descriptionParts = [
+    const descriptionLines = [
         '__**Sollicitatie status:**__',
         '',
         '🟢 Sollicitatie staat open',
@@ -117,8 +126,12 @@ async function buildPanelEmbed(config, guild) {
         `**__*Aantal leden: ${memberCount}*__**`,
     ];
 
-    if (extraMessage.trim()) {
-        descriptionParts.push(
+    /*
+     * Alleen extra tekst toevoegen als je die
+     * zelf hebt ingesteld via het dashboard.
+     */
+    if (extraMessage) {
+        descriptionLines.push(
             '',
             '━━━━━━━━━━━━━━━━━━━━',
             '',
@@ -127,9 +140,11 @@ async function buildPanelEmbed(config, guild) {
     }
 
     return new EmbedBuilder()
-        .setTitle('White Angels')
+        .setTitle(
+            'White Angels'
+        )
         .setDescription(
-            descriptionParts.join('\n')
+            descriptionLines.join('\n')
         )
         .setColor(
             getColor('info')
@@ -137,21 +152,27 @@ async function buildPanelEmbed(config, guild) {
 }
 
 /* ============================================================
-   PANEL BUTTON
+   TICKET PANEL BUTTON
    ============================================================ */
 
-function buildPanelButtonRow(config) {
+function buildPanelButtonRow() {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId('create_ticket')
-            .setLabel('Sollicitatie')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('💪')
+            .setCustomId(
+                'create_ticket'
+            )
+            .setLabel(
+                'Sollicitatie'
+            )
+            .setStyle(
+                ButtonStyle.Primary
+            )
+            .setEmoji('📩')
     );
 }
 
 /* ============================================================
-   DASHBOARD BUTTONS
+   DASHBOARD BUTTON ROW
    ============================================================ */
 
 function buildButtonRow(
@@ -175,8 +196,12 @@ function buildButtonRow(
                 .setCustomId(
                     `ticket_cfg_repost_${guildId}`
                 )
-                .setLabel('Repost Panel')
-                .setStyle(ButtonStyle.Primary)
+                .setLabel(
+                    'Repost Panel'
+                )
+                .setStyle(
+                    ButtonStyle.Primary
+                )
                 .setEmoji('📌')
                 .setDisabled(disabled)
         );
@@ -187,34 +212,52 @@ function buildButtonRow(
             .setCustomId(
                 `ticket_cfg_dm_toggle_${guildId}`
             )
-            .setLabel('DM on Close')
+            .setLabel(
+                'DM on Close'
+            )
             .setStyle(
                 dmEnabled
                     ? ButtonStyle.Success
                     : ButtonStyle.Danger
             )
             .setEmoji(
-                dmEnabled ? '📬' : '📭'
+                dmEnabled
+                    ? '📬'
+                    : '📭'
             )
-            .setDisabled(disabled),
+            .setDisabled(
+                disabled
+            ),
 
         new ButtonBuilder()
             .setCustomId(
                 `ticket_cfg_staff_role_btn_${guildId}`
             )
-            .setLabel('Staff Role')
-            .setStyle(ButtonStyle.Secondary)
+            .setLabel(
+                'Staff Role'
+            )
+            .setStyle(
+                ButtonStyle.Secondary
+            )
             .setEmoji('🛡️')
-            .setDisabled(disabled),
+            .setDisabled(
+                disabled
+            ),
 
         new ButtonBuilder()
             .setCustomId(
                 `ticket_cfg_delete_${guildId}`
             )
-            .setLabel('Delete System')
-            .setStyle(ButtonStyle.Danger)
+            .setLabel(
+                'Delete System'
+            )
+            .setStyle(
+                ButtonStyle.Danger
+            )
             .setEmoji('🗑️')
-            .setDisabled(disabled)
+            .setDisabled(
+                disabled
+            )
     );
 
     return new ActionRowBuilder().addComponents(
@@ -223,7 +266,7 @@ function buildButtonRow(
 }
 
 /* ============================================================
-   PANEL MESSAGE ID
+   SAVE PANEL MESSAGE ID
    ============================================================ */
 
 async function persistPanelMessageId(
@@ -253,7 +296,7 @@ async function persistPanelMessageId(
 }
 
 /* ============================================================
-   REPOST PANEL
+   REPOST TICKET PANEL
    ============================================================ */
 
 async function repostTicketPanel(
@@ -267,7 +310,9 @@ async function repostTicketPanel(
             .fetch(
                 guildConfig.ticketPanelChannelId
             )
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!channel) {
         throw new TitanBotError(
@@ -286,9 +331,7 @@ async function repostTicketPanel(
                 ),
             ],
             components: [
-                buildPanelButtonRow(
-                    guildConfig
-                ),
+                buildPanelButtonRow(),
             ],
         });
 
@@ -308,7 +351,7 @@ async function repostTicketPanel(
 }
 
 /* ============================================================
-   AUTO UPDATE PANEL EVERY 30 SECONDS
+   START AUTO UPDATE
    ============================================================ */
 
 function startTicketPanelAutoUpdate(
@@ -327,62 +370,73 @@ function startTicketPanelAutoUpdate(
         return;
     }
 
-    const interval = setInterval(
-        async () => {
-            try {
-                const guildConfig =
-                    await getGuildConfig(
-                        client,
-                        guild.id
+    const interval =
+        setInterval(
+            async () => {
+                try {
+                    const guildConfig =
+                        await getGuildConfig(
+                            client,
+                            guild.id
+                        );
+
+                    if (
+                        !guildConfig.ticketPanelChannelId ||
+                        !guildConfig.ticketPanelMessageId
+                    ) {
+                        return;
+                    }
+
+                    const channel =
+                        await guild.channels
+                            .fetch(
+                                guildConfig.ticketPanelChannelId
+                            )
+                            .catch(
+                                () => null
+                            );
+
+                    if (!channel) {
+                        return;
+                    }
+
+                    const panelMessage =
+                        await channel.messages
+                            .fetch(
+                                guildConfig.ticketPanelMessageId
+                            )
+                            .catch(
+                                () => null
+                            );
+
+                    if (!panelMessage) {
+                        return;
+                    }
+
+                    const updatedEmbed =
+                        await buildPanelEmbed(
+                            guildConfig,
+                            guild
+                        );
+
+                    await panelMessage.edit({
+                        embeds: [
+                            updatedEmbed,
+                        ],
+                        components: [
+                            buildPanelButtonRow(),
+                        ],
+                    });
+
+                } catch (error) {
+                    logger.warn(
+                        `Failed to auto-update White Angels panel for ${guild.id}:`,
+                        error.message
                     );
-
-                if (
-                    !guildConfig.ticketPanelChannelId ||
-                    !guildConfig.ticketPanelMessageId
-                ) {
-                    return;
                 }
-
-                const channel =
-                    await guild.channels.fetch(
-                        guildConfig.ticketPanelChannelId
-                    ).catch(() => null);
-
-                if (!channel) {
-                    return;
-                }
-
-                const message =
-                    await channel.messages.fetch(
-                        guildConfig.ticketPanelMessageId
-                    ).catch(() => null);
-
-                if (!message) {
-                    return;
-                }
-
-                const embed =
-                    await buildPanelEmbed(
-                        guildConfig,
-                        guild
-                    );
-
-                await message.edit({
-                    embeds: [embed],
-                    components: [
-                        buildPanelButtonRow(
-                            guildConfig
-                        ),
-                    ],
-                });
-            } catch (error) {
-                logger.warn(
-                    `Failed to update ticket panel for guild ${guild.id}: ${error.message}`
-                );
-            }
-        },
-        30_000
-    );
+            },
+            30000
+        );
 
     panelUpdateIntervals.set(
         guild.id,
@@ -390,9 +444,13 @@ function startTicketPanelAutoUpdate(
     );
 
     logger.info(
-        `✅ Ticket panel auto-update started for guild ${guild.id}`
+        `✅ White Angels panel auto-update started for guild ${guild.id}`
     );
 }
+
+/* ============================================================
+   STOP AUTO UPDATE
+   ============================================================ */
 
 function stopTicketPanelAutoUpdate(
     guildId
@@ -406,15 +464,21 @@ function stopTicketPanelAutoUpdate(
         return;
     }
 
-    clearInterval(interval);
+    clearInterval(
+        interval
+    );
 
     panelUpdateIntervals.delete(
         guildId
     );
+
+    logger.info(
+        `White Angels panel auto-update stopped for guild ${guildId}`
+    );
 }
 
 /* ============================================================
-   DASHBOARD HELPERS
+   CLOSE DURATION
    ============================================================ */
 
 function formatCloseDuration(ms) {
@@ -439,6 +503,10 @@ function formatCloseDuration(ms) {
 
     return `${minutes}m`;
 }
+
+/* ============================================================
+   DASHBOARD EMBED
+   ============================================================ */
 
 function buildDashboardEmbed(
     config,
@@ -492,11 +560,14 @@ function buildDashboardEmbed(
 
     const rawMsg =
         config.ticketPanelMessage ||
-        'Klik hieronder op de knop om een sollicitatie te starten.';
+        '`Geen extra bericht ingesteld.`';
 
     const panelMsg =
         `\`${rawMsg.length > 60
-            ? `${rawMsg.substring(0, 60)}…`
+            ? rawMsg.substring(
+                  0,
+                  60
+              ) + '…'
             : rawMsg}\``;
 
     const panelStatusValue =
@@ -506,7 +577,9 @@ function buildDashboardEmbed(
 
     const openTickets =
         ticketStats
-            ? String(ticketStats.openCount)
+            ? String(
+                  ticketStats.openCount
+              )
             : '`—`';
 
     const avgCloseTime =
@@ -519,7 +592,8 @@ function buildDashboardEmbed(
     const feedbackSummary =
         ticketStats?.feedbackCount
             ? `${ticketStats.avgRating}/5 (${ticketStats.feedbackCount} rating${
-                  ticketStats.feedbackCount !== 1
+                  ticketStats.feedbackCount !==
+                  1
                       ? 's'
                       : ''
               })`
@@ -537,116 +611,146 @@ function buildDashboardEmbed(
         )
         .addFields(
             {
-                name: 'Panel Status',
+                name:
+                    'Panel Status',
                 value:
                     panelStatusValue,
-                inline: false,
+                inline:
+                    false,
             },
             {
-                name: 'Panel Channel',
+                name:
+                    'Panel Channel',
                 value:
                     panelChannel,
-                inline: true,
+                inline:
+                    true,
             },
             {
-                name: 'Staff Role',
-                value: staffRole,
-                inline: true,
+                name:
+                    'Staff Role',
+                value:
+                    staffRole,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
                 name:
                     'Open Tickets Category',
                 value:
                     openCategory,
-                inline: true,
+                inline:
+                    true,
             },
             {
                 name:
                     'Closed Tickets Category',
                 value:
                     closedCategory,
-                inline: true,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
                 name:
                     'Panel Message',
-                value: panelMsg,
-                inline: false,
+                value:
+                    panelMsg,
+                inline:
+                    false,
             },
             {
                 name:
                     'Button Label',
                 value:
-                    '`Solicitate`',
-                inline: true,
+                    '`Sollicitatie`',
+                inline:
+                    true,
             },
             {
                 name:
                     'Max Tickets/User',
-                value: String(
-                    config.maxTicketsPerUser ||
+                value:
+                    String(
+                        config.maxTicketsPerUser ||
                         3
-                ),
-                inline: true,
+                    ),
+                inline:
+                    true,
             },
             {
                 name:
                     'DM on Close',
                 value:
-                    config.dmOnClose !== false
+                    config.dmOnClose !==
+                    false
                         ? 'Enabled'
                         : 'Disabled',
-                inline: true,
+                inline:
+                    true,
             },
             {
                 name:
                     'Ticket Logs Channel',
                 value:
                     ticketLogsChannel,
-                inline: true,
+                inline:
+                    true,
             },
             {
                 name:
                     'Transcript Channel',
                 value:
                     transcriptChannel,
-                inline: true,
+                inline:
+                    true,
             },
             {
-                name: '\u200B',
-                value: '\u200B',
-                inline: true,
+                name:
+                    '\u200B',
+                value:
+                    '\u200B',
+                inline:
+                    true,
             },
             {
                 name:
                     'Open Tickets',
                 value:
                     openTickets,
-                inline: true,
+                inline:
+                    true,
             },
             {
                 name:
                     'Avg Close Time',
                 value:
                     avgCloseTime,
-                inline: true,
+                inline:
+                    true,
             },
             {
                 name:
                     'Feedback Rating',
                 value:
                     feedbackSummary,
-                inline: true,
+                inline:
+                    true,
             }
         )
         .setFooter({
@@ -657,10 +761,12 @@ function buildDashboardEmbed(
 }
 
 /* ============================================================
-   SELECT MENU
+   DASHBOARD SELECT MENU
    ============================================================ */
 
-function buildSelectMenu(guildId) {
+function buildSelectMenu(
+    guildId
+) {
     return new StringSelectMenuBuilder()
         .setCustomId(
             `ticket_config_${guildId}`
@@ -674,7 +780,7 @@ function buildSelectMenu(guildId) {
                     'Edit Panel Message'
                 )
                 .setDescription(
-                    'Change the message displayed on the ticket creation panel'
+                    'Change the extra message displayed on the ticket panel'
                 )
                 .setValue(
                     'panel_message'
@@ -686,7 +792,7 @@ function buildSelectMenu(guildId) {
                     'Edit Button Label'
                 )
                 .setDescription(
-                    'Change the label on the ticket creation button'
+                    'Change the ticket button label'
                 )
                 .setValue(
                     'button_label'
@@ -722,7 +828,7 @@ function buildSelectMenu(guildId) {
                     'Set Max Tickets per User'
                 )
                 .setDescription(
-                    'Limit how many open tickets one user can have at once'
+                    'Limit how many open tickets one user can have'
                 )
                 .setValue(
                     'max_tickets'
@@ -734,7 +840,7 @@ function buildSelectMenu(guildId) {
                     'Set Ticket Logs Channel'
                 )
                 .setDescription(
-                    'Channel to receive ticket feedback and lifecycle events'
+                    'Channel for ticket logs'
                 )
                 .setValue(
                     'logs_channel'
@@ -746,7 +852,7 @@ function buildSelectMenu(guildId) {
                     'Set Transcript Channel'
                 )
                 .setDescription(
-                    'Channel to receive auto-generated transcripts'
+                    'Channel for ticket transcripts'
                 )
                 .setValue(
                     'transcript_channel'
@@ -777,7 +883,9 @@ async function refreshDashboard(
             guildId
         );
 
-    if (panelStatus?.recoveredId) {
+    if (
+        panelStatus?.recoveredId
+    ) {
         await persistPanelMessageId(
             client,
             guildId,
@@ -869,11 +977,11 @@ async function updateLivePanel(
             );
 
         await panelStatus.message.edit({
-            embeds: [embed],
+            embeds: [
+                embed,
+            ],
             components: [
-                buildPanelButtonRow(
-                    config
-                ),
+                buildPanelButtonRow(),
             ],
         });
 
@@ -885,7 +993,8 @@ async function updateLivePanel(
         return true;
     } catch (error) {
         logger.warn(
-            `Failed to update live ticket panel: ${error.message}`
+            'Failed to update live ticket panel:',
+            error.message
         );
 
         return false;
@@ -893,7 +1002,7 @@ async function updateLivePanel(
 }
 
 /* ============================================================
-   PANEL MESSAGE EDIT
+   PANEL MESSAGE
    ============================================================ */
 
 async function handlePanelMessage(
@@ -918,7 +1027,7 @@ async function handlePanelMessage(
                             'panel_msg_input'
                         )
                         .setLabel(
-                            'Panel Message'
+                            'Extra Panel Message'
                         )
                         .setStyle(
                             TextInputStyle.Paragraph
@@ -937,7 +1046,7 @@ async function handlePanelMessage(
                             true
                         )
                         .setPlaceholder(
-                            'Extra text onder de White Angels status'
+                            'Extra text onder de sollicitatie status'
                         )
                 )
             );
@@ -956,7 +1065,9 @@ async function handlePanelMessage(
                         selectInteraction.user.id,
                 time: 120_000,
             })
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!submitted) {
         return;
@@ -991,8 +1102,8 @@ async function handlePanelMessage(
             successEmbed(
                 '✅ Panel Message Updated',
                 panelUpdated
-                    ? 'The panel message has been updated.'
-                    : 'The panel could not be located.'
+                    ? 'The ticket panel has been updated.'
+                    : 'The ticket panel could not be located.'
             ),
         ],
         flags:
@@ -1039,7 +1150,7 @@ async function handleButtonLabel(
                             TextInputStyle.Short
                         )
                         .setValue(
-                            'Solicitate'
+                            'Sollicitatie'
                         )
                         .setMaxLength(
                             80
@@ -1051,7 +1162,7 @@ async function handleButtonLabel(
                             true
                         )
                         .setPlaceholder(
-                            'Solicitate'
+                            'Sollicitatie'
                         )
                 )
             );
@@ -1070,7 +1181,9 @@ async function handleButtonLabel(
                         selectInteraction.user.id,
                 time: 120_000,
             })
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!submitted) {
         return;
@@ -1140,7 +1253,9 @@ async function handleStaffRole(
             .setPlaceholder(
                 'Select the staff role...'
             )
-            .setMaxValues(1);
+            .setMaxValues(
+                1
+            );
 
     await selectInteraction.followUp({
         embeds: [
@@ -1172,11 +1287,13 @@ async function handleStaffRole(
         rootInteraction.channel.createMessageComponentCollector({
             componentType:
                 ComponentType.RoleSelect,
+
             filter: i =>
                 i.user.id ===
                     selectInteraction.user.id &&
                 i.customId ===
                     'ticket_cfg_staff_role',
+
             time: 60_000,
             max: 1,
         });
@@ -1247,7 +1364,9 @@ async function handleOpenCategory(
             .addChannelTypes(
                 ChannelType.GuildCategory
             )
-            .setMaxValues(1);
+            .setMaxValues(
+                1
+            );
 
     await selectInteraction.followUp({
         embeds: [
@@ -1279,11 +1398,13 @@ async function handleOpenCategory(
         rootInteraction.channel.createMessageComponentCollector({
             componentType:
                 ComponentType.ChannelSelect,
+
             filter: i =>
                 i.user.id ===
                     selectInteraction.user.id &&
                 i.customId ===
                     'ticket_cfg_open_cat',
+
             time: 60_000,
             max: 1,
         });
@@ -1354,7 +1475,9 @@ async function handleClosedCategory(
             .addChannelTypes(
                 ChannelType.GuildCategory
             )
-            .setMaxValues(1);
+            .setMaxValues(
+                1
+            );
 
     await selectInteraction.followUp({
         embeds: [
@@ -1386,11 +1509,13 @@ async function handleClosedCategory(
         rootInteraction.channel.createMessageComponentCollector({
             componentType:
                 ComponentType.ChannelSelect,
+
             filter: i =>
                 i.user.id ===
                     selectInteraction.user.id &&
                 i.customId ===
                     'ticket_cfg_closed_cat',
+
             time: 60_000,
             max: 1,
         });
@@ -1474,10 +1599,18 @@ async function handleMaxTickets(
                                     3
                             )
                         )
-                        .setMaxLength(2)
-                        .setMinLength(1)
-                        .setRequired(true)
-                        .setPlaceholder('3')
+                        .setMaxLength(
+                            2
+                        )
+                        .setMinLength(
+                            1
+                        )
+                        .setRequired(
+                            true
+                        )
+                        .setPlaceholder(
+                            '3'
+                        )
                 )
             );
 
@@ -1493,9 +1626,12 @@ async function handleMaxTickets(
                         'ticket_cfg_max_tickets' &&
                     i.user.id ===
                         selectInteraction.user.id,
+
                 time: 120_000,
             })
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!submitted) {
         return;
@@ -1632,7 +1768,9 @@ async function handleLogsChannel(
             .addChannelTypes(
                 ChannelType.GuildText
             )
-            .setMaxValues(1);
+            .setMaxValues(
+                1
+            );
 
     await selectInteraction.followUp({
         embeds: [
@@ -1660,11 +1798,13 @@ async function handleLogsChannel(
         rootInteraction.channel.createMessageComponentCollector({
             componentType:
                 ComponentType.ChannelSelect,
+
             filter: i =>
                 i.user.id ===
                     selectInteraction.user.id &&
                 i.customId ===
                     'ticket_cfg_logs_channel',
+
             time: 60_000,
             max: 1,
         });
@@ -1735,7 +1875,9 @@ async function handleTranscriptChannel(
             .addChannelTypes(
                 ChannelType.GuildText
             )
-            .setMaxValues(1);
+            .setMaxValues(
+                1
+            );
 
     await selectInteraction.followUp({
         embeds: [
@@ -1763,11 +1905,13 @@ async function handleTranscriptChannel(
         rootInteraction.channel.createMessageComponentCollector({
             componentType:
                 ComponentType.ChannelSelect,
+
             filter: i =>
                 i.user.id ===
                     selectInteraction.user.id &&
                 i.customId ===
                     'ticket_cfg_transcript_channel',
+
             time: 60_000,
             max: 1,
         });
@@ -1945,9 +2089,12 @@ async function handleDeleteSystem(
                         'ticket_delete_confirm_modal' &&
                     i.user.id ===
                         btnInteraction.user.id,
+
                 time: 120_000,
             })
-            .catch(() => null);
+            .catch(
+                () => null
+            );
 
     if (!submitted) {
         return;
@@ -2045,11 +2192,11 @@ async function handleDeleteSystem(
                     if (messages) {
                         const found =
                             messages.find(
-                                m =>
-                                    m.author.id ===
+                                message =>
+                                    message.author.id ===
                                         client.user.id &&
                                     messageHasButtonCustomId(
-                                        m,
+                                        message,
                                         'create_ticket'
                                     )
                             );
@@ -2148,7 +2295,6 @@ export default {
                 );
             }
 
-            // Start de automatische update.
             startTicketPanelAutoUpdate(
                 client,
                 interaction.guild
