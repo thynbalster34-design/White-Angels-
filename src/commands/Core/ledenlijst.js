@@ -49,26 +49,33 @@ async function refreshMembers(guild) {
     const now = Date.now();
 
     // Niet iedere keer opnieuw alle leden ophalen.
-    // Cache 60 seconden, zodat Discord niet wordt geratelimit.
-    if (memberFetchPromise && now - lastMemberFetch < 60000) {
+    // Maximaal één volledige fetch per 60 seconden.
+    if (
+        memberFetchPromise &&
+        now - lastMemberFetch < 60000
+    ) {
         return memberFetchPromise;
     }
 
     lastMemberFetch = now;
 
-    memberFetchPromise = guild.members.fetch()
+    memberFetchPromise = guild.members
+        .fetch()
         .then(members => {
             logger.info(
                 `Fetched ${members.size} members for White Angels ledenlijst.`
             );
+
             return members;
         })
         .catch(error => {
             memberFetchPromise = null;
+
             logger.error(
                 'Failed to fetch all guild members:',
                 error
             );
+
             throw error;
         });
 
@@ -95,14 +102,18 @@ export default {
             const guild = interaction.guild;
 
             if (!guild) {
-                await InteractionHelper.safeEditReply(interaction, {
-                    content:
-                        '❌ Dit command kan alleen in een server gebruikt worden.',
-                });
+                await InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                        content:
+                            '❌ Dit command kan alleen in een server gebruikt worden.',
+                    }
+                );
+
                 return;
             }
 
-            // Haal ALLE leden op, dus ook offline leden.
+            // Alle leden ophalen, inclusief offline leden.
             await refreshMembers(guild);
 
             // Rollen verversen.
@@ -113,47 +124,72 @@ export default {
                 );
             });
 
-            const whiteAngelsRole = findRole(
-                guild,
-                MAIN_ROLE_ALIASES
-            );
+            const whiteAngelsRole =
+                findRole(
+                    guild,
+                    MAIN_ROLE_ALIASES
+                );
 
             if (!whiteAngelsRole) {
-                await InteractionHelper.safeEditReply(interaction, {
-                    content:
-                        '❌ Ik kan de **White Angels**-rol niet vinden.',
-                });
+                await InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                        content:
+                            '❌ Ik kan de **White Angels**-rol niet vinden.',
+                    }
+                );
+
                 return;
             }
 
-            // Alle White Angels leden, online én offline.
+            // Alle mensen met de White Angels hoofdrol.
             const whiteAngelsMembers =
                 guild.members.cache.filter(
                     member =>
                         !member.user.bot &&
-                        member.roles.cache.has(whiteAngelsRole.id)
+                        member.roles.cache.has(
+                            whiteAngelsRole.id
+                        )
                 );
 
-            const rankRoles = ROLE_ORDER.map(rank => ({
-                ...rank,
-                role: findRole(
-                    guild,
-                    [rank.name, ...rank.aliases]
-                ),
-            }));
+            // Rangrollen zoeken.
+            const rankRoles =
+                ROLE_ORDER.map(rank => ({
+                    ...rank,
+                    role: findRole(
+                        guild,
+                        [
+                            rank.name,
+                            ...rank.aliases,
+                        ]
+                    ),
+                }));
 
-            const membersByRank = new Map();
+            // Leden per rang.
+            const membersByRank =
+                new Map();
 
             for (const rank of ROLE_ORDER) {
-                membersByRank.set(rank.name, []);
+                membersByRank.set(
+                    rank.name,
+                    []
+                );
             }
 
-            // Ieder lid krijgt zijn hoogste rang.
-            for (const member of whiteAngelsMembers.values()) {
-                for (const rank of rankRoles) {
+            // Ieder lid krijgt alleen zijn hoogste rang.
+            for (
+                const member
+                of whiteAngelsMembers.values()
+            ) {
+                for (
+                    const rank
+                    of rankRoles
+                ) {
                     if (
                         rank.role &&
-                        member.roles.cache.has(rank.role.id)
+                        member.roles.cache.has(
+                            rank.role.id
+                        )
                     ) {
                         membersByRank
                             .get(rank.name)
@@ -164,61 +200,97 @@ export default {
                 }
             }
 
-            const fields = [];
-
-            for (const rank of ROLE_ORDER) {
-                const members =
-                    membersByRank.get(rank.name) || [];
-
-                let value = '*Geen leden*';
-
-                if (members.length > 0) {
-                    members.sort((a, b) =>
-                        a.displayName.localeCompare(
-                            b.displayName,
-                            'nl'
-                        )
+            // Maak de embed.
+            const embed =
+                new EmbedBuilder()
+                    .setColor(0xFFFFFF)
+                    .setTitle(
+                        '🤍 WHITE ANGELS — LEDENLIJST'
+                    )
+                    .setDescription(
+                        [
+                            '',
+                            '',
+                            `## 🤍 TOTAAL AANTAL LEDEN`,
+                            `# ${whiteAngelsMembers.size}`,
+                            '',
+                            '━━━━━━━━━━━━━━━━━━━━',
+                            '',
+                        ].join('\n')
                     );
 
-                    value = members
-                        .map(member => `• ${member}`)
-                        .join('\n');
+            // Elke rang groot en duidelijk.
+            for (
+                const rank
+                of ROLE_ORDER
+            ) {
+                const members =
+                    membersByRank.get(
+                        rank.name
+                    ) || [];
+
+                const memberLines =
+                    members
+                        .sort((a, b) =>
+                            a.displayName.localeCompare(
+                                b.displayName,
+                                'nl'
+                            )
+                        )
+                        .map(
+                            member =>
+                                `• ${member}`
+                        );
+
+                let value =
+                    '*Geen leden*';
+
+                if (
+                    memberLines.length > 0
+                ) {
+                    value =
+                        memberLines.join(
+                            '\n'
+                        );
                 }
 
-                fields.push({
-                    name: `${rank.emoji} ${rank.name}`,
+                embed.addFields({
+                    name:
+                        `## ${rank.emoji} ${rank.name.toUpperCase()}`,
                     value,
                     inline: false,
                 });
             }
 
-            const embed = new EmbedBuilder()
-                .setTitle('🤍 WHITE ANGELS — LEDENLIJST')
-                .setDescription(
-                    `\n\n**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**\n`
-                )
-                .setColor(0xFFFFFF)
-                .addFields(fields)
-                .setFooter({
-                    text: 'White Angels • Ledenlijst',
-                    iconURL:
-                        interaction.client.user.displayAvatarURL(),
-                });
-
-            await InteractionHelper.safeEditReply(interaction, {
-                embeds: [embed],
+            embed.setFooter({
+                text:
+                    'White Angels • Ledenlijst',
+                iconURL:
+                    interaction.client.user
+                        .displayAvatarURL(),
             });
 
+            embed.setTimestamp();
+
+            await InteractionHelper.safeEditReply(
+                interaction,
+                {
+                    embeds: [embed],
+                }
+            );
         } catch (error) {
             logger.error(
                 'Ledenlijst command error:',
                 error
             );
 
-            await InteractionHelper.safeEditReply(interaction, {
-                content:
-                    '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
-            }).catch(() => {});
+            await InteractionHelper.safeEditReply(
+                interaction,
+                {
+                    content:
+                        '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
+                }
+            ).catch(() => {});
         }
     },
 };
