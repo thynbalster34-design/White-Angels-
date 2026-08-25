@@ -27,7 +27,8 @@ export default {
     category: 'Core',
 
     async execute(interaction) {
-        const deferSuccess = await InteractionHelper.safeDefer(interaction);
+        const deferSuccess =
+            await InteractionHelper.safeDefer(interaction);
 
         if (!deferSuccess) {
             return;
@@ -43,40 +44,60 @@ export default {
                 });
             }
 
-            await guild.members.fetch();
-
-            const whiteAngelsRole = guild.roles.cache.find(
-                role =>
-                    role.name.trim().toLowerCase() ===
-                    MAIN_ROLE.toLowerCase()
-            );
-
-            if (!whiteAngelsRole) {
-                return InteractionHelper.safeEditReply(interaction, {
-                    content:
-                        `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
-                });
+            // Gebruik de bestaande cache.
+            // Alleen fetchen als de cache daadwerkelijk leeg is.
+            if (guild.members.cache.size === 0) {
+                try {
+                    await guild.members.fetch();
+                } catch (error) {
+                    logger.error(
+                        'Failed to fetch guild members:',
+                        error
+                    );
+                }
             }
 
-            const members = guild.members.cache.filter(
-                member =>
-                    !member.user.bot &&
-                    member.roles.cache.has(whiteAngelsRole.id)
-            );
+            const whiteAngelsRole =
+                guild.roles.cache.find(
+                    role =>
+                        role.name.trim().toLowerCase() ===
+                        MAIN_ROLE.toLowerCase()
+                );
+
+            if (!whiteAngelsRole) {
+                return InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                        content:
+                            `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
+                    }
+                );
+            }
+
+            const whiteAngelsMembers =
+                guild.members.cache.filter(
+                    member =>
+                        !member.user.bot &&
+                        member.roles.cache.has(
+                            whiteAngelsRole.id
+                        )
+                );
 
             const lines = [];
 
             lines.push(
-                `**🤍 Totaal aantal ${MAIN_ROLE} leden: ${members.size}**`,
+                '',
+                `**🤍 Totaal aantal leden: ${whiteAngelsMembers.size}**`,
                 ''
             );
 
             for (const roleInfo of ROLE_ORDER) {
-                const role = guild.roles.cache.find(
-                    r =>
-                        r.name.trim().toLowerCase() ===
-                        roleInfo.name.toLowerCase()
-                );
+                const role =
+                    guild.roles.cache.find(
+                        r =>
+                            r.name.trim().toLowerCase() ===
+                            roleInfo.name.toLowerCase()
+                    );
 
                 lines.push(
                     `### ${roleInfo.emoji} ${roleInfo.name}`
@@ -90,49 +111,64 @@ export default {
                     continue;
                 }
 
-                const roleMembers = members
-                    .filter(member =>
-                        member.roles.cache.has(role.id)
-                    )
-                    .sort((a, b) =>
-                        a.displayName.localeCompare(
-                            b.displayName,
-                            'nl'
+                const roleMembers =
+                    whiteAngelsMembers
+                        .filter(member =>
+                            member.roles.cache.has(
+                                role.id
+                            )
                         )
-                    );
+                        .sort((a, b) =>
+                            a.displayName.localeCompare(
+                                b.displayName,
+                                'nl'
+                            )
+                        );
 
                 if (roleMembers.size === 0) {
                     lines.push(
                         '*Geen leden*',
                         ''
                     );
-                } else {
-                    for (const member of roleMembers.values()) {
-                        lines.push(`• ${member}`);
-                    }
-
-                    lines.push('');
+                    continue;
                 }
+
+                for (
+                    const member
+                    of roleMembers.values()
+                ) {
+                    lines.push(`• ${member}`);
+                }
+
+                lines.push('');
             }
 
-            const description = lines.join('\n');
+            const description =
+                lines.join('\n');
 
             const embed = createEmbed({
-                title: '🤍 WHITE ANGELS — LEDENLIJST',
+                title:
+                    '🤍 WHITE ANGELS — LEDENLIJST',
                 description,
                 color: '#FFFFFF',
             });
 
             embed.setFooter({
-                text: 'White Angels • Ledenlijst',
-                iconURL: interaction.client.user.displayAvatarURL(),
+                text:
+                    'White Angels • Ledenlijst',
+                iconURL:
+                    interaction.client.user
+                        .displayAvatarURL(),
             });
 
             embed.setTimestamp();
 
-            await InteractionHelper.safeEditReply(interaction, {
-                embeds: [embed],
-            });
+            await InteractionHelper.safeEditReply(
+                interaction,
+                {
+                    embeds: [embed],
+                }
+            );
 
         } catch (error) {
             logger.error(
@@ -140,10 +176,13 @@ export default {
                 error
             );
 
-            await InteractionHelper.safeEditReply(interaction, {
-                content:
-                    '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
-            }).catch(() => {});
+            await InteractionHelper.safeEditReply(
+                interaction,
+                {
+                    content:
+                        '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
+                }
+            ).catch(() => {});
         }
     },
 };
