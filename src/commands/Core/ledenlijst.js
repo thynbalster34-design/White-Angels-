@@ -161,14 +161,10 @@ export default {
             const membersByRank = new Map();
 
             for (const rank of ROLE_ORDER) {
-                membersByRank.set(
-                    rank.name,
-                    []
-                );
+                membersByRank.set(rank.name, []);
             }
 
-            // Iedere member krijgt alleen de hoogste rang
-            // die hij/zij van White Angels heeft.
+            // Iedere member krijgt alleen de hoogste rang.
             for (
                 const member
                 of whiteAngelsMembers.values()
@@ -255,12 +251,21 @@ export default {
 
             embed.setTimestamp();
 
+            // Ephemeral bevestiging voor degene die het command uitvoert.
             await InteractionHelper.safeEditReply(
                 interaction,
                 {
-                    embeds: [embed],
+                    content:
+                        '✅ De White Angels ledenlijst is geplaatst.',
                 }
             );
+
+            // De echte ledenlijst als apart normaal bericht in het kanaal.
+            if (interaction.channel?.isTextBased()) {
+                await interaction.channel.send({
+                    embeds: [embed],
+                });
+            }
 
         } catch (error) {
             logger.error(
@@ -272,7 +277,7 @@ export default {
                 interaction,
                 {
                     content:
-                        '❌ Er ging iets mis bij het ophalen van de ledenlijst.',
+                        '❌ Er ging iets mis bij het plaatsen van de ledenlijst.',
                 }
             ).catch(() => {});
         }
