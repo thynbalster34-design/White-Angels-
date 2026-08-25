@@ -37,47 +37,53 @@ export default {
             const guild = interaction.guild;
 
             if (!guild) {
-                await InteractionHelper.safeEditReply(interaction, {
+                return InteractionHelper.safeEditReply(interaction, {
                     content: '❌ Dit command kan alleen in een server gebruikt worden.',
                 });
-                return;
             }
 
-            // Zorg ervoor dat de leden beschikbaar zijn.
             await guild.members.fetch();
 
             const whiteAngelsRole = guild.roles.cache.find(
-                role => role.name.toLowerCase() === MAIN_ROLE.toLowerCase()
+                role =>
+                    role.name.trim().toLowerCase() ===
+                    MAIN_ROLE.toLowerCase()
             );
 
             if (!whiteAngelsRole) {
-                await InteractionHelper.safeEditReply(interaction, {
-                    content: `❌ De rol **@${MAIN_ROLE}** bestaat niet.`,
+                return InteractionHelper.safeEditReply(interaction, {
+                    content: `❌ De rol **${MAIN_ROLE}** bestaat niet.`,
                 });
-                return;
             }
 
-            // Alle leden met de White Angels-rol
-            const whiteAngelsMembers = guild.members.cache.filter(
+            const members = guild.members.cache.filter(
                 member =>
                     !member.user.bot &&
                     member.roles.cache.has(whiteAngelsRole.id)
             );
 
-            const sections = [];
+            const lines = [];
+
+            lines.push(
+                `**Totaal aantal leden:** ${members.size}`,
+                ''
+            );
 
             for (const roleName of ROLE_ORDER) {
                 const role = guild.roles.cache.find(
                     r =>
-                        r.name.toLowerCase() ===
+                        r.name.trim().toLowerCase() ===
                         roleName.toLowerCase()
                 );
 
+                lines.push(`**${roleName}**`);
+
                 if (!role) {
+                    lines.push('*Rol niet gevonden*', '');
                     continue;
                 }
 
-                const members = whiteAngelsMembers
+                const roleMembers = members
                     .filter(member =>
                         member.roles.cache.has(role.id)
                     )
@@ -88,27 +94,22 @@ export default {
                         )
                     );
 
-                if (members.size === 0) {
-                    sections.push(
-                        `**${roleName}**\n*Geen leden*`
-                    );
-                    continue;
+                if (roleMembers.size === 0) {
+                    lines.push('*Geen leden*', '');
+                } else {
+                    for (const member of roleMembers.values()) {
+                        lines.push(`• ${member}`);
+                    }
+
+                    lines.push('');
                 }
-
-                const memberList = members
-                    .map(member => `• ${member}`)
-                    .join('\n');
-
-                sections.push(
-                    `**${roleName}**\n${memberList}`
-                );
             }
+
+            const description = lines.join('\n');
 
             const embed = createEmbed({
                 title: '🤍 WHITE ANGELS — LEDENLIJST',
-                description:
-                    `**Totaal aantal leden:** ${whiteAngelsMembers.size}\n\n` +
-                    sections.join('\n\n'),
+                description,
                 color: '#FFFFFF',
             });
 
