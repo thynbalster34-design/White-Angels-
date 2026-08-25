@@ -71,65 +71,38 @@ const panelUpdateIntervals =
 async function getWhiteAngelsMemberCount(guild) {
     try {
         /*
-         * Gebruik Discord's actuele role member counts.
-         *
-         * Hierdoor zijn we niet afhankelijk van de lokale
-         * member cache.
+         * Haal de members opnieuw op zodat role changes
+         * ook bij offline leden worden meegenomen.
          */
-        if (
-            guild.roles &&
-            typeof guild.roles.fetchMemberCounts === 'function'
-        ) {
-            const roleCounts =
-                await guild.roles.fetchMemberCounts();
-
-            const count =
-                Number(
-                    roleCounts.get(
-                        WHITE_ANGELS_ROLE_ID
-                    ) || 0
-                );
-
-            logger.info(
-                `🤍 White Angels member count in ${guild.name}: ${count}`
-            );
-
-            return count;
-        }
+        const members =
+            await guild.members.fetch({
+                force: true,
+            });
 
         /*
-         * Fallback voor een omgeving waar fetchMemberCounts
-         * niet beschikbaar is.
+         * Alleen echte gebruikers met de exacte
+         * White Angels rol tellen.
          */
-        try {
-            const members =
-                await guild.members.fetch();
-
-            const count =
-                members.filter(
-                    member =>
-                        !member.user.bot &&
-                        member.roles.cache.has(
-                            WHITE_ANGELS_ROLE_ID
-                        )
-                ).size;
-
-            logger.info(
-                `🤍 White Angels member count fallback in ${guild.name}: ${count}`
+        const whiteAngelsMembers =
+            members.filter(
+                member =>
+                    !member.user.bot &&
+                    member.roles.cache.has(
+                        WHITE_ANGELS_ROLE_ID
+                    )
             );
 
-            return count;
-        } catch (fallbackError) {
-            logger.warn(
-                `White Angels member count fallback failed in ${guild.name}: ${fallbackError.message}`
-            );
+        const count =
+            whiteAngelsMembers.size;
 
-            return 0;
-        }
+        logger.info(
+            `🤍 White Angels member count in ${guild.name}: ${count}`
+        );
 
+        return count;
     } catch (error) {
         logger.error(
-            `Failed to get White Angels member count in guild ${guild.id}:`,
+            `Failed to count White Angels members in guild ${guild.id}:`,
             error
         );
 
@@ -194,7 +167,9 @@ async function buildPanelEmbed(
     }
 
     return new EmbedBuilder()
-        .setTitle('White Angels')
+        .setTitle(
+            'White Angels'
+        )
         .setDescription(
             descriptionLines.join('\n')
         )
@@ -262,7 +237,9 @@ async function findExistingTicketPanel(
     guild,
     guildConfig
 ) {
-    if (!guildConfig.ticketPanelChannelId) {
+    if (
+        !guildConfig.ticketPanelChannelId
+    ) {
         return null;
     }
 
@@ -319,7 +296,7 @@ async function findExistingTicketPanel(
     }
 
     /* --------------------------------------------------------
-       2. Laatste 100 berichten ophalen
+       2. Laatste 100 berichten zoeken
        -------------------------------------------------------- */
 
     const messages =
@@ -346,7 +323,8 @@ async function findExistingTicketPanel(
         `🔎 Found ${botMessages.size} bot message(s) in ticket panel channel ${channel.id}`
     );
 
-    let panelMessage = null;
+    let panelMessage =
+        null;
 
     /* --------------------------------------------------------
        3. Zoek create_ticket knop
@@ -403,14 +381,15 @@ async function findExistingTicketPanel(
     }
 
     /* --------------------------------------------------------
-       5. Fallback: botbericht met embed
+       5. Laatste fallback: botbericht met embed
        -------------------------------------------------------- */
 
     if (!panelMessage) {
         panelMessage =
             botMessages.find(
                 message =>
-                    message.embeds?.length > 0
+                    message.embeds?.length >
+                    0
             );
     }
 
@@ -607,7 +586,7 @@ function stopTicketPanelAutoUpdate(
 }
 
 /* ============================================================
-   REPOST TICKET PANEL
+   REPOST PANEL
    ============================================================ */
 
 async function repostTicketPanel(
@@ -1491,20 +1470,19 @@ async function handleStaffRole(
     });
 
     const collector =
-        rootInteraction.channel
-            .createMessageComponentCollector({
-                componentType:
-                    ComponentType.RoleSelect,
+        rootInteraction.channel.createMessageComponentCollector({
+            componentType:
+                ComponentType.RoleSelect,
 
-                filter: i =>
-                    i.user.id ===
-                        selectInteraction.user.id &&
-                    i.customId ===
-                        'ticket_cfg_staff_role',
+            filter: i =>
+                i.user.id ===
+                    selectInteraction.user.id &&
+                i.customId ===
+                    'ticket_cfg_staff_role',
 
-                time: 60_000,
-                max: 1,
-            });
+            time: 60_000,
+            max: 1,
+        });
 
     collector.on(
         'collect',
@@ -1604,20 +1582,19 @@ async function handleOpenCategory(
     });
 
     const collector =
-        rootInteraction.channel
-            .createMessageComponentCollector({
-                componentType:
-                    ComponentType.ChannelSelect,
+        rootInteraction.channel.createMessageComponentCollector({
+            componentType:
+                ComponentType.ChannelSelect,
 
-                filter: i =>
-                    i.user.id ===
-                        selectInteraction.user.id &&
-                    i.customId ===
-                        'ticket_cfg_open_cat',
+            filter: i =>
+                i.user.id ===
+                    selectInteraction.user.id &&
+                i.customId ===
+                    'ticket_cfg_open_cat',
 
-                time: 60_000,
-                max: 1,
-            });
+            time: 60_000,
+            max: 1,
+        });
 
     collector.on(
         'collect',
@@ -1717,20 +1694,19 @@ async function handleClosedCategory(
     });
 
     const collector =
-        rootInteraction.channel
-            .createMessageComponentCollector({
-                componentType:
-                    ComponentType.ChannelSelect,
+        rootInteraction.channel.createMessageComponentCollector({
+            componentType:
+                ComponentType.ChannelSelect,
 
-                filter: i =>
-                    i.user.id ===
-                        selectInteraction.user.id &&
-                    i.customId ===
-                        'ticket_cfg_closed_cat',
+            filter: i =>
+                i.user.id ===
+                    selectInteraction.user.id &&
+                i.customId ===
+                    'ticket_cfg_closed_cat',
 
-                time: 60_000,
-                max: 1,
-            });
+            time: 60_000,
+            max: 1,
+        });
 
     collector.on(
         'collect',
@@ -1809,7 +1785,7 @@ async function handleMaxTickets(
                             .setValue(
                                 String(
                                     guildConfig.maxTicketsPerUser ||
-                                        3
+                                    3
                                 )
                             )
                             .setMaxLength(
@@ -1864,9 +1840,7 @@ async function handleMaxTickets(
         );
 
     if (
-        Number.isNaN(
-            newMax
-        ) ||
+        Number.isNaN(newMax) ||
         newMax < 1 ||
         newMax > 10
     ) {
@@ -2011,20 +1985,19 @@ async function handleLogsChannel(
     });
 
     const collector =
-        rootInteraction.channel
-            .createMessageComponentCollector({
-                componentType:
-                    ComponentType.ChannelSelect,
+        rootInteraction.channel.createMessageComponentCollector({
+            componentType:
+                ComponentType.ChannelSelect,
 
-                filter: i =>
-                    i.user.id ===
-                        selectInteraction.user.id &&
-                    i.customId ===
-                        'ticket_cfg_logs_channel',
+            filter: i =>
+                i.user.id ===
+                    selectInteraction.user.id &&
+                i.customId ===
+                    'ticket_cfg_logs_channel',
 
-                time: 60_000,
-                max: 1,
-            });
+            time: 60_000,
+            max: 1,
+        });
 
     collector.on(
         'collect',
@@ -2120,20 +2093,19 @@ async function handleTranscriptChannel(
     });
 
     const collector =
-        rootInteraction.channel
-            .createMessageComponentCollector({
-                componentType:
-                    ComponentType.ChannelSelect,
+        rootInteraction.channel.createMessageComponentCollector({
+            componentType:
+                ComponentType.ChannelSelect,
 
-                filter: i =>
-                    i.user.id ===
-                        selectInteraction.user.id &&
-                    i.customId ===
-                        'ticket_cfg_transcript_channel',
+            filter: i =>
+                i.user.id ===
+                    selectInteraction.user.id &&
+                i.customId ===
+                    'ticket_cfg_transcript_channel',
 
-                time: 60_000,
-                max: 1,
-            });
+            time: 60_000,
+            max: 1,
+        });
 
     collector.on(
         'collect',
@@ -2573,12 +2545,11 @@ export default {
                 );
 
             const selectRow =
-                new ActionRowBuilder()
-                    .addComponents(
-                        buildSelectMenu(
-                            guildId
-                        )
-                    );
+                new ActionRowBuilder().addComponents(
+                    buildSelectMenu(
+                        guildId
+                    )
+                );
 
             await startDashboardSession({
                 interaction,
@@ -2614,8 +2585,7 @@ export default {
                 onSelect:
                     async selectInteraction => {
                         const selectedOption =
-                            selectInteraction
-                                .values[0];
+                            selectInteraction.values[0];
 
                         switch (
                             selectedOption
@@ -2797,4 +2767,4 @@ export {
     updateExistingTicketPanel,
     startAllTicketPanelAutoUpdates,
     repostTicketPanel,
-};
+}; 
