@@ -3,25 +3,25 @@ import { logger, startupLog } from "../utils/logger.js";
 import config from "../config/application.js";
 
 import {
-  reconcileReactionRoleMessages
+  reconcileReactionRoleMessages,
 } from "../services/reactionRoleService.js";
 
 import {
   reconcileTicketPanels,
   reconcileVerificationPanels,
-  reconcileReactionRolePanelHealth
+  reconcileReactionRolePanelHealth,
 } from "../services/panelHealthService.js";
 
 import {
-  reconcileLevelRoles
+  reconcileLevelRoles,
 } from "../services/leveling/levelRoleSyncService.js";
 
 import {
-  initRiffyAfterReady
+  initRiffyAfterReady,
 } from "../services/music/riffySetup.js";
 
 import {
-  startAllTicketPanelAutoUpdates
+  startAllTicketPanelAutoUpdates,
 } from "../commands/Ticket/modules/ticket_dashboard.js";
 
 export default {
@@ -30,7 +30,13 @@ export default {
 
   async execute(client) {
     try {
-      client.user.setPresence(config.bot.presence);
+      /* ========================================================
+         BOT READY
+         ======================================================== */
+
+      client.user.setPresence(
+        config.bot.presence
+      );
 
       startupLog(
         `Ready! Logged in as ${client.user.tag}`
@@ -44,14 +50,10 @@ export default {
         `Loaded ${client.commands.size} commands`
       );
 
-      /*
-       * ==========================================
-       * ALLE SERVERLEDEN OPHALEN
-       * ==========================================
-       *
-       * Dit zorgt ervoor dat ook offline leden in
-       * de member cache komen.
-       */
+      /* ========================================================
+         ALLE SERVERLEDEN OPHALEN
+         ======================================================== */
+
       for (
         const guild
         of client.guilds.cache.values()
@@ -70,14 +72,9 @@ export default {
         }
       }
 
-      /*
-       * ==========================================
-       * TICKET PANEL AUTO UPDATE STARTEN
-       * ==========================================
-       */
-      await startAllTicketPanelAutoUpdates(
-        client
-      );
+      /* ========================================================
+         MUSIC
+         ======================================================== */
 
       if (
         client.config?.features?.music
@@ -86,6 +83,10 @@ export default {
           client
         );
       }
+
+      /* ========================================================
+         REACTION ROLES
+         ======================================================== */
 
       const reconciliationSummary =
         await reconcileReactionRoleMessages(
@@ -96,6 +97,10 @@ export default {
         `Reaction role reconciliation: scanned ${reconciliationSummary.scannedMessages}, removed ${reconciliationSummary.removedMessages}, errors ${reconciliationSummary.errors}`
       );
 
+      /* ========================================================
+         TICKET PANEL HEALTH
+         ======================================================== */
+
       const ticketPanelSummary =
         await reconcileTicketPanels(
           client
@@ -104,6 +109,23 @@ export default {
       startupLog(
         `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
       );
+
+      /* ========================================================
+         TICKET PANEL AUTO UPDATE
+         ========================================================
+
+         BELANGRIJK:
+         Eerst wordt het ticketpanel gecontroleerd/hersteld.
+         Daarna pas starten we de automatische updater.
+      */
+
+      await startAllTicketPanelAutoUpdates(
+        client
+      );
+
+      /* ========================================================
+         VERIFICATION PANEL
+         ======================================================== */
 
       const verificationPanelSummary =
         await reconcileVerificationPanels(
@@ -114,6 +136,10 @@ export default {
         `Verification panel health: scanned ${verificationPanelSummary.scannedGuilds} guilds, healthy ${verificationPanelSummary.healthyPanels}, deleted ${verificationPanelSummary.deletedPanels}, missing channel ${verificationPanelSummary.missingChannels}, recovered ${verificationPanelSummary.recoveredIds}, errors ${verificationPanelSummary.errors}`
       );
 
+      /* ========================================================
+         REACTION ROLE PANEL HEALTH
+         ======================================================== */
+
       const reactionRolePanelSummary =
         await reconcileReactionRolePanelHealth(
           client
@@ -123,6 +149,10 @@ export default {
         `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
       );
 
+      /* ========================================================
+         LEVEL ROLES
+         ======================================================== */
+
       const levelRoleSummary =
         await reconcileLevelRoles(
           client
@@ -130,6 +160,14 @@ export default {
 
       startupLog(
         `Level role sync: scanned ${levelRoleSummary.scannedGuilds} guilds, pruned ${levelRoleSummary.prunedRewardEntries} stale rewards, re-awarded ${levelRoleSummary.rolesReAwarded} roles, errors ${levelRoleSummary.errors}`
+      );
+
+      /* ========================================================
+         KLAAR
+         ======================================================== */
+
+      startupLog(
+        "✅ All startup systems initialized successfully"
       );
 
     } catch (error) {
