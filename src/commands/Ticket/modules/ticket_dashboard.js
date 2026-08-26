@@ -172,7 +172,7 @@ async function buildPanelEmbed(
 
     return new EmbedBuilder()
         .setTitle(
-            'White Angels'
+            'Kompaniya'
         )
         .setDescription(
             descriptionLines.join('\n')
