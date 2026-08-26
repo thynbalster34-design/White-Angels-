@@ -3,6 +3,8 @@ import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
+const ALLOWED_USER_ID = '708290114760998993';
+
 export default {
     data: new SlashCommandBuilder()
         .setName('msg')
@@ -18,6 +20,17 @@ export default {
     category: 'Core',
 
     async execute(interaction) {
+
+        // Controleer of de gebruiker toestemming heeft
+        if (interaction.user.id !== ALLOWED_USER_ID) {
+            await interaction.reply({
+                content: '❌ Je hebt geen toestemming om dit command te gebruiken.',
+                flags: MessageFlags.Ephemeral,
+            });
+
+            return;
+        }
+
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
 
         if (!deferSuccess) {
@@ -28,7 +41,7 @@ export default {
             const tekst = interaction.options.getString('tekst');
 
             const embed = createEmbed({
-                title: '🤍 Kompaniya',
+                title: '🤍 KOMPANIYA',
                 description: tekst,
                 color: '#FFFFFF',
             });
@@ -40,10 +53,12 @@ export default {
 
             embed.setTimestamp();
 
+            // Stuur het bericht in het huidige kanaal
             await interaction.channel.send({
                 embeds: [embed],
             });
 
+            // Bevestiging alleen voor jou zichtbaar
             await InteractionHelper.safeEditReply(interaction, {
                 content: '✅ Bericht geplaatst.',
             });
