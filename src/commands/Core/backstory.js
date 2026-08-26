@@ -46,7 +46,7 @@ Wie bij de groep hoort, wordt gezien als familie.
 
 ## 🔥 DE TOEKOMST
 
-Nu willen de White Angels hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen.
+Nu willen de Kompaniya hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen.
 
 Ze willen niet zomaar een groep zijn die tijdelijk bestaat, maar een **elite organisatie** die langzaam groter en machtiger wordt.
 
