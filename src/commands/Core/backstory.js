@@ -3,6 +3,16 @@ import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
+/* ============================================================
+   TOEGANG
+   ============================================================ */
+
+const ALLOWED_USER_ID = '708290114760998993';
+
+/* ============================================================
+   BACKSTORY
+   ============================================================ */
+
 const BACKSTORY = `# 🤍 Kompaniya
 ### *One group. One family. One goal.*
 
@@ -46,7 +56,7 @@ Wie bij de groep hoort, wordt gezien als familie.
 
 ## 🔥 DE TOEKOMST
 
-Nu willen de Kompaniya hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen.
+Nu wil Kompaniya hun verleden achter zich laten en in RealLife een nieuwe naam opbouwen.
 
 Ze willen niet zomaar een groep zijn die tijdelijk bestaat, maar een **elite organisatie** die langzaam groter en machtiger wordt.
 
@@ -70,7 +80,26 @@ export default {
     category: 'Core',
 
     async execute(interaction) {
-        const deferSuccess = await InteractionHelper.safeDefer(interaction);
+
+        /* ====================================================
+           TOEGANGSCONTROLE
+           ==================================================== */
+
+        if (interaction.user.id !== ALLOWED_USER_ID) {
+            await interaction.reply({
+                content: '❌ Je hebt geen toestemming om dit command te gebruiken.',
+                flags: MessageFlags.Ephemeral,
+            });
+
+            return;
+        }
+
+        /* ====================================================
+           COMMAND UITVOEREN
+           ==================================================== */
+
+        const deferSuccess =
+            await InteractionHelper.safeDefer(interaction);
 
         if (!deferSuccess) {
             return;
