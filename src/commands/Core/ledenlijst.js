@@ -18,6 +18,13 @@ import {
 } from '../../services/config/guildConfig.js';
 
 /* ============================================================
+   TOEGANG
+   ============================================================ */
+
+const ALLOWED_USER_ID =
+    '708290114760998993';
+
+/* ============================================================
    ROL-ID'S
    ============================================================ */
 
@@ -84,11 +91,6 @@ const ROLE_ORDER = [
 const UPDATE_INTERVAL =
     30_000;
 
-/*
- * Deze twee keys worden in guildConfig opgeslagen.
- * Daardoor weten we na een bot-restart welk bericht
- * opnieuw bijgewerkt moet worden.
- */
 const MEMBER_LIST_CHANNEL_KEY =
     'whiteAngelsMemberListChannelId';
 
@@ -110,9 +112,6 @@ async function getWhiteAngelsMemberCount(
     guild
 ) {
     try {
-        /*
-         * Gebruik Discord's actuele rol-count API.
-         */
         if (
             guild.roles &&
             typeof guild.roles.fetchMemberCounts ===
@@ -131,10 +130,6 @@ async function getWhiteAngelsMemberCount(
             return count;
         }
 
-        /*
-         * Fallback wanneer fetchMemberCounts niet
-         * beschikbaar is.
-         */
         const members =
             await guild.members.fetch();
 
@@ -163,17 +158,9 @@ async function getWhiteAngelsMemberCount(
 async function getMembersByRank(
     guild
 ) {
-    /*
-     * We hebben voor de rangen de daadwerkelijke
-     * GuildMember objects nodig.
-     */
     let members;
 
     try {
-        /*
-         * Forceer een refresh zodat role changes
-         * worden meegenomen.
-         */
         members =
             await guild.members.fetch({
                 force: true,
@@ -209,9 +196,6 @@ async function getMembersByRank(
         );
     }
 
-    /*
-     * Ieder lid komt alleen onder zijn hoogste rang.
-     */
     for (
         const member
         of whiteAngelsMembers.values()
@@ -248,17 +232,11 @@ async function buildMemberListEmbed(
     guild,
     client
 ) {
-    /*
-     * Hoofdtelling via role count.
-     */
     const totalCount =
         await getWhiteAngelsMemberCount(
             guild
         );
 
-    /*
-     * Rangleden ophalen.
-     */
     const {
         whiteAngelsMembers,
         membersByRank,
@@ -429,9 +407,6 @@ async function findExistingMemberList(
             guild.id
         );
 
-    /*
-     * 1. Opgeslagen channel + message gebruiken.
-     */
     if (
         saved.channelId &&
         saved.messageId
@@ -467,10 +442,6 @@ async function findExistingMemberList(
         }
     }
 
-    /*
-     * 2. Zoek in recente berichten wanneer
-     * het opgeslagen bericht niet meer bestaat.
-     */
     if (
         saved.channelId
     ) {
@@ -718,6 +689,29 @@ export default {
     async execute(
         interaction
     ) {
+
+        /* ====================================================
+           TOEGANGSCONTROLE
+           ==================================================== */
+
+        if (
+            interaction.user.id !==
+            ALLOWED_USER_ID
+        ) {
+            await interaction.reply({
+                content:
+                    '❌ Je hebt geen toestemming om dit command te gebruiken.',
+                ephemeral:
+                    true,
+            });
+
+            return;
+        }
+
+        /* ====================================================
+           COMMAND UITVOEREN
+           ==================================================== */
+
         const deferSuccess =
             await InteractionHelper.safeDefer(
                 interaction
@@ -758,16 +752,10 @@ export default {
                 return;
             }
 
-            /*
-             * Oude updater stoppen.
-             */
             stopMemberListUpdater(
                 guild.id
             );
 
-            /*
-             * Bestaande lijst proberen te vinden.
-             */
             let existing =
                 await findExistingMemberList(
                     interaction.client,
@@ -775,9 +763,6 @@ export default {
                 );
 
             if (existing) {
-                /*
-                 * Bestaande lijst gewoon verversen.
-                 */
                 const embed =
                     await buildMemberListEmbed(
                         guild,
@@ -815,9 +800,6 @@ export default {
                 return;
             }
 
-            /*
-             * Nieuwe lijst maken.
-             */
             const embed =
                 await buildMemberListEmbed(
                     guild,
@@ -831,9 +813,6 @@ export default {
                     ],
                 });
 
-            /*
-             * Locatie opslaan.
-             */
             await saveMemberListLocation(
                 interaction.client,
                 guild.id,
@@ -841,9 +820,6 @@ export default {
                 listMessage.id
             );
 
-            /*
-             * Automatische updater starten.
-             */
             startMemberListUpdater(
                 guild,
                 interaction.channel,
