@@ -64,7 +64,7 @@ Ze zijn Rusland ontvlucht om te overleven.
 export default {
     data: new SlashCommandBuilder()
         .setName('backstory')
-        .setDescription('Plaats de White Angels backstory')
+        .setDescription('Plaats de Kompaniya backstory')
         .setDMPermission(false),
 
     category: 'Core',
@@ -78,7 +78,7 @@ export default {
 
         try {
             const embed = createEmbed({
-                title: '🤍 WHITE ANGELS',
+                title: '🤍 Kompaniya',
                 description: BACKSTORY,
                 color: '#FFFFFF',
             });
