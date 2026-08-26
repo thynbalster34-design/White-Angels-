@@ -28,7 +28,7 @@ export default {
             const tekst = interaction.options.getString('tekst');
 
             const embed = createEmbed({
-                title: '🤍 KOMPANIYA',
+                title: '🤍 Kompaniya',
                 description: tekst,
                 color: '#FFFFFF',
             });
