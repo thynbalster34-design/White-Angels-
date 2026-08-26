@@ -3,14 +3,14 @@ import { createEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
-const BACKSTORY = `# 🤍 WHITE ANGELS
+const BACKSTORY = `# 🤍 Kompaniya
 ### *One group. One family. One goal.*
 
 ━━━━━━━━━━━━━━━━━━━━
 
 ## 🇷🇺 HET BEGIN
 
-White Angels begon niet in RLRP, maar in Rusland.
+Kompaniya begon niet in RLRP, maar in Rusland.
 
 De groep bestond uit een aantal boys die elkaar al jaren kenden en samen waren opgegroeid. Ze hadden allemaal hun eigen problemen, maar één ding hadden ze gemeen: **ze vertrouwden alleen elkaar.**
 
@@ -28,15 +28,15 @@ Eén van de oprichters, **Lolo Bobbers**, begon daarom oude contacten te gebruik
 
 Wat eerst een paar kleine klusjes waren, werd langzaam steeds groter. De groep begon steeds meer mensen te leren kennen en kreeg daardoor ook steeds meer invloed.
 
-## 🤍 DE GEBOORTE VAN WHITE ANGELS
+## 🤍 DE GEBOORTE VAN KOMPANIYA
 
-Na een tijdje werd **White Angels officieel opgericht.**
+Na een tijdje werd **Kompaniya officieel opgericht.**
 
 De naam kwam voort uit hun verleden. Voor de buitenwereld waren ze misschien *"de engelen"* die uit Rusland waren gekomen, maar achter die naam zat een groep die alles had moeten achterlaten om opnieuw te beginnen.
 
 Door de jaren heen werd de groep steeds hechter.
 
-Binnen White Angels gelden daarom drie belangrijke waarden:
+Binnen Kompaniya gelden daarom drie belangrijke waarden:
 
 **LOYALITEIT • RESPECT • VERTROUWEN**
 
@@ -58,7 +58,7 @@ Ze zijn Rusland ontvlucht om te overleven.
 
 ━━━━━━━━━━━━━━━━━━━━
 
-### 🤍 WHITE ANGELS
+### 🤍 KOMPANIYA
 **Één groep. Één familie. Één doel.**`;
 
 export default {
