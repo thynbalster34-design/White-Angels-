@@ -150,7 +150,7 @@ async function handleSetup(interaction, guild, client) {
         }
 
         guildConfig.verification.autoVerify = {
-            enabled: true,
+            enabled: false,
             criteria: criteria,
             accountAgeDays: criteria === "account_age" ? accountAgeDays : null,
             roleId: targetRole.id,
