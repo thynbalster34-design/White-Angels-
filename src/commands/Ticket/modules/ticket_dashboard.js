@@ -52,11 +52,18 @@ import {
 } from '../../../utils/dashboardSession.js';
 
 /* ============================================================
-   WHITE ANGELS
+   KOMPANIYA / WHITE ANGELS
    ============================================================ */
 
 const WHITE_ANGELS_ROLE_ID =
     '1437696432340467786';
+
+/*
+ * ALLEEN DEZE DISCORD USER MAG
+ * /ticket dashboard GEBRUIKEN
+ */
+const AUTHORIZED_USER_ID =
+    '708290114760998993';
 
 const PANEL_UPDATE_INTERVAL =
     30_000;
@@ -70,20 +77,11 @@ const panelUpdateIntervals =
 
 async function getWhiteAngelsMemberCount(guild) {
     try {
-        /*
-         * Probeer rechtstreeks members uit Discord op te halen.
-         *
-         * Voor jouw server is 1000 ruim voldoende.
-         */
         const members =
             await guild.members.list({
                 limit: 1000,
             });
 
-        /*
-         * Alleen echte gebruikers met de exacte
-         * White Angels rol tellen.
-         */
         const whiteAngelsMembers =
             members.filter(
                 member =>
@@ -503,9 +501,6 @@ function startTicketPanelAutoUpdate(
         return;
     }
 
-    /*
-     * Meteen één keer updaten.
-     */
     updateExistingTicketPanel(
         client,
         guild
@@ -513,9 +508,6 @@ function startTicketPanelAutoUpdate(
         () => {}
     );
 
-    /*
-     * Daarna iedere 30 seconden.
-     */
     const interval =
         setInterval(
             async () => {
@@ -2490,6 +2482,24 @@ export default {
         config,
         client
     ) {
+        /*
+         * ====================================================
+         * ALLEEN USER 708290114760998993
+         * ====================================================
+         */
+
+        if (
+            interaction.user.id !==
+            AUTHORIZED_USER_ID
+        ) {
+            return interaction.reply({
+                content:
+                    '❌ Je hebt geen toestemming om het ticket dashboard te gebruiken.',
+                flags:
+                    MessageFlags.Ephemeral,
+            });
+        }
+
         try {
             const guildId =
                 interaction.guild.id;
