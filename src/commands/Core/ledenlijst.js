@@ -273,7 +273,7 @@ async function buildMemberListEmbed(
                 0xFFFFFF
             )
             .setTitle(
-                '🤍 WHITE ANGELS — LEDENLIJST'
+                '🤍 Kompaniya — LEDENLIJST'
             )
             .setDescription(
                 [
