@@ -1,3 +1,5 @@
+console.log('🔥🔥🔥 VERIFICATION COMMAND FILE GELADEN 🔥🔥🔥');
+
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
