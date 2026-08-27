@@ -1,3 +1,5 @@
+console.log('🔥 VERIFICATION.JS WORDT GELADEN 🔥');
+
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
