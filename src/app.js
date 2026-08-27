@@ -962,47 +962,8 @@ class TitanBot extends Client {
 
   async registerCommands() {
     try {
-      /*
-       * Eerst alle bestaande guild commands verwijderen.
-       *
-       * Dit is belangrijk omdat Discord anders een oude
-       * geregistreerde /verification command kan behouden.
-       */
-
       startupLog(
-        `Removing old slash commands from guild ${GUILD_ID}...`
-      );
-
-      await this.rest.put(
-        `/applications/${CLIENT_ID}/guilds/${GUILD_ID}/commands`,
-        {
-          body: [],
-        }
-      );
-
-      startupLog(
-        '✅ Old guild slash commands removed'
-      );
-
-      /*
-       * Kleine vertraging zodat Discord zeker de oude
-       * command-cache heeft verwerkt.
-       */
-
-      await new Promise(
-        resolve =>
-          setTimeout(
-            resolve,
-            1000
-          )
-      );
-
-      /*
-       * Nieuwe commands registreren.
-       */
-
-      startupLog(
-        `Registering fresh slash commands to guild ${GUILD_ID}...`
+        `Registering slash commands to guild ${GUILD_ID}...`
       );
 
       await registerSlashCommands(
@@ -1017,7 +978,7 @@ class TitanBot extends Client {
       );
 
       startupLog(
-        `Commands registered to White Angels server ${GUILD_ID}`
+        `✅ Commands registered to White Angels server ${GUILD_ID}`
       );
 
     } catch (
