@@ -14,7 +14,7 @@ const COMMAND_COUNT_WARN_THRESHOLD = 90;
 function getSubcommandInfo(commandData) {
     const subcommands = [];
 
-    if (commandData.options) {
+    if (commandData?.options) {
         for (const option of commandData.options) {
             if (option.type === 1) {
                 subcommands.push(option.name);
@@ -65,7 +65,8 @@ export async function loadCommands(client) {
         '../../commands'
     );
 
-    const commandFiles = await getAllFiles(commandsPath);
+    const commandFiles =
+        await getAllFiles(commandsPath);
 
     logger.info(
         `Found ${commandFiles.length} command files to load`
@@ -75,34 +76,49 @@ export async function loadCommands(client) {
 
     for (const filePath of commandFiles) {
         try {
-            const normalizedPath = filePath.replace(
-                /\\/g,
-                '/'
-            );
+            const normalizedPath =
+                filePath.replace(/\\/g, '/');
 
-            const commandName = path.basename(
-                filePath,
-                '.js'
-            );
+            const commandName =
+                path.basename(
+                    filePath,
+                    '.js'
+                );
 
-            const commandDir = path.dirname(filePath);
-            const category = path.basename(commandDir);
+            const commandDir =
+                path.dirname(filePath);
 
-            const moduleUrl = pathToFileURL(filePath).href;
-            const commandModule = await import(moduleUrl);
+            const category =
+                path.basename(commandDir);
+
+            const moduleUrl =
+                pathToFileURL(
+                    filePath
+                ).href;
+
+            const commandModule =
+                await import(moduleUrl);
 
             const command =
-                commandModule.default || commandModule;
+                commandModule.default ||
+                commandModule;
 
-            if (!command.data || !command.execute) {
+            if (
+                !command.data ||
+                typeof command.execute !== 'function'
+            ) {
                 logger.warn(
                     `Command at ${filePath} is missing required "data" or "execute" property.`
                 );
+
                 continue;
             }
 
-            command.category = category;
-            command.filePath = normalizedPath;
+            command.category =
+                category;
+
+            command.filePath =
+                normalizedPath;
 
             const primaryCommandName =
                 command.data.name;
@@ -120,6 +136,10 @@ export async function loadCommands(client) {
                     primaryCommandName,
                     command
                 );
+            } else {
+                logger.warn(
+                    `Duplicate command name detected: ${primaryCommandName} from ${normalizedPath}`
+                );
             }
 
             const subcommands =
@@ -131,11 +151,14 @@ export async function loadCommands(client) {
                 `Loaded command: ${primaryCommandName} from ${normalizedPath} (category: ${category})`
             );
 
-            if (subcommands.length > 0) {
+            if (
+                subcommands.length > 0
+            ) {
                 logger.info(
                     `  - Subcommands: ${subcommands.join(', ')}`
                 );
             }
+
         } catch (error) {
             logger.error(
                 `Error loading command from ${filePath}:`,
@@ -145,16 +168,16 @@ export async function loadCommands(client) {
     }
 
     const commandsWithSubcommands =
-        Array.from(client.commands.values()).filter(
-            (cmd) => {
-                const subcommands =
-                    getSubcommandInfo(
-                        cmd.data.toJSON()
-                    );
+        Array.from(
+            client.commands.values()
+        ).filter(cmd => {
+            const subcommands =
+                getSubcommandInfo(
+                    cmd.data.toJSON()
+                );
 
-                return subcommands.length > 0;
-            }
-        );
+            return subcommands.length > 0;
+        });
 
     const totalSubcommands =
         commandsWithSubcommands.reduce(
@@ -181,16 +204,22 @@ function collectCommandPayloads(client) {
     const commands = [];
     let totalSubcommands = 0;
 
-    const registeredNames = new Set();
+    const registeredNames =
+        new Set();
 
-    for (const command of client.commands.values()) {
+    for (
+        const command
+        of client.commands.values()
+    ) {
         if (
             !command.data ||
-            typeof command.data.toJSON !== 'function'
+            typeof command.data.toJSON !==
+                'function'
         ) {
             logger.warn(
-                `Command missing data or toJSON method`
+                'Command missing data or toJSON method'
             );
+
             continue;
         }
 
@@ -205,6 +234,7 @@ function collectCommandPayloads(client) {
             logger.debug(
                 `Skipping duplicate command: ${commandName}`
             );
+
             continue;
         }
 
@@ -215,7 +245,9 @@ function collectCommandPayloads(client) {
         const commandJson =
             command.data.toJSON();
 
-        commands.push(commandJson);
+        commands.push(
+            commandJson
+        );
 
         totalSubcommands +=
             getSubcommandInfo(
@@ -236,7 +268,10 @@ function collectCommandPayloads(client) {
 function validateCommands(commands) {
     const validationErrors = [];
 
-    for (const cmd of commands) {
+    for (
+        const cmd
+        of commands
+    ) {
         if (
             cmd.name &&
             cmd.name.length > 32
@@ -255,11 +290,16 @@ function validateCommands(commands) {
             );
         }
 
-        if (!cmd.options) {
+        if (
+            !cmd.options
+        ) {
             continue;
         }
 
-        for (const option of cmd.options) {
+        for (
+            const option
+            of cmd.options
+        ) {
             if (
                 option.name &&
                 option.name.length > 32
@@ -314,12 +354,14 @@ function validateCommands(commands) {
             'Command validation failed:'
         );
 
-        validationErrors.forEach(
-            (error) =>
-                logger.error(
-                    `  - ${error}`
-                )
-        );
+        for (
+            const error
+            of validationErrors
+        ) {
+            logger.error(
+                `  - ${error}`
+            );
+        }
 
         throw new Error(
             `Command validation failed with ${validationErrors.length} errors`
@@ -340,8 +382,7 @@ function prepareCommandsForRegistration(
     }
 
     if (
-        commands.length <=
-        MAX_COMMANDS
+        commands.length <= MAX_COMMANDS
     ) {
         return commands;
     }
@@ -378,7 +419,9 @@ async function registerGlobalCommands(
         `Preparing to register ${totalSubcommands + commands.length} commands globally`
     );
 
-    validateCommands(commands);
+    validateCommands(
+        commands
+    );
 
     const commandsToRegister =
         prepareCommandsForRegistration(
@@ -403,7 +446,8 @@ async function registerGlobalCommands(
     await client.rest.put(
         `/applications/${clientId}/commands`,
         {
-            body: commandsToRegister,
+            body:
+                commandsToRegister,
         }
     );
 
@@ -426,9 +470,13 @@ export async function registerCommands(
             commands,
             totalSubcommands,
         } =
-            collectCommandPayloads(client);
+            collectCommandPayloads(
+                client
+            );
 
-        validateCommands(commands);
+        validateCommands(
+            commands
+        );
 
         const commandsToRegister =
             prepareCommandsForRegistration(
@@ -443,15 +491,77 @@ export async function registerCommands(
 
         if (!client.rest) {
             throw new Error(
-                'Discord REST client is not available'
+                'Discord REST client is not available for command registration'
             );
         }
 
-        if (
-            guildId
-        ) {
+        /* ========================================================
+           GUILD COMMANDS
+           ======================================================== */
+
+        if (guildId) {
             logger.info(
-                `Registering ${commandsToRegister.length} commands to guild ${guildId}...`
+                `Removing old guild slash commands from ${guildId}...`
+            );
+
+            await client.rest.put(
+                `/applications/${clientId}/guilds/${guildId}/commands`,
+                {
+                    body: [],
+                }
+            );
+
+            logger.info(
+                `✅ Old guild slash commands removed from ${guildId}`
+            );
+
+            /*
+             * Kleine vertraging om Discord de verwijdering
+             * volledig te laten verwerken.
+             */
+
+            await new Promise(
+                resolve =>
+                    setTimeout(
+                        resolve,
+                        1000
+                    )
+            );
+
+            /*
+             * Nog één keer controleren dat verification
+             * daadwerkelijk de verwachte structuur heeft.
+             */
+
+            const verificationCommand =
+                commands.find(
+                    command =>
+                        command.name ===
+                        'verification'
+                );
+
+            if (
+                verificationCommand
+            ) {
+                logger.info(
+                    '[Verification] Command registration payload:'
+                );
+
+                logger.info(
+                    JSON.stringify(
+                        verificationCommand,
+                        null,
+                        2
+                    )
+                );
+            } else {
+                logger.warn(
+                    '[Verification] verification command was not found in registration payload'
+                );
+            }
+
+            logger.info(
+                `Registering ${commandsToRegister.length} fresh commands to guild ${guildId}...`
             );
 
             await client.rest.put(
@@ -463,11 +573,15 @@ export async function registerCommands(
             );
 
             logger.info(
-                `Successfully registered ${commandsToRegister.length} commands to guild ${guildId}`
+                `✅ Successfully registered ${commandsToRegister.length} commands to guild ${guildId}`
             );
 
             return;
         }
+
+        /* ========================================================
+           GLOBAL COMMANDS
+           ======================================================== */
 
         await registerGlobalCommands(
             client,
@@ -475,6 +589,7 @@ export async function registerCommands(
             commands,
             totalSubcommands
         );
+
     } catch (error) {
         logger.error(
             'Error registering commands:',
@@ -496,7 +611,9 @@ export async function reloadCommand(
 
     if (!command) {
         return {
-            success: false,
+            success:
+                false,
+
             message:
                 `Command "${commandName}" not found`,
         };
@@ -525,6 +642,22 @@ export async function reloadCommand(
                 )
             ).default;
 
+        if (
+            !newCommand?.data ||
+            typeof newCommand.execute !==
+                'function'
+        ) {
+            throw new Error(
+                `Reloaded command "${commandName}" is missing data or execute`
+            );
+        }
+
+        newCommand.category =
+            command.category;
+
+        newCommand.filePath =
+            command.filePath;
+
         client.commands.set(
             commandName,
             newCommand
@@ -535,10 +668,13 @@ export async function reloadCommand(
         );
 
         return {
-            success: true,
+            success:
+                true,
+
             message:
                 `Successfully reloaded command "${commandName}"`,
         };
+
     } catch (error) {
         logger.error(
             `Error reloading command "${commandName}":`,
@@ -546,7 +682,9 @@ export async function reloadCommand(
         );
 
         return {
-            success: false,
+            success:
+                false,
+
             message:
                 `Error reloading command: ${error.message}`,
         };
