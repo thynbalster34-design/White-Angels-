@@ -74,9 +74,6 @@ const CLIENT_ID =
 const GUILD_ID =
   '1437696431900070024';
 
-const WHITE_ANGELS_ROLE_ID =
-  '1437696432340467786';
-
 /* ============================================================
    BOT
    ============================================================ */
@@ -98,23 +95,12 @@ class TitanBot extends Client {
 
     this.config = config;
 
-    this.commands =
-      new Collection();
-
-    this.events =
-      new Collection();
-
-    this.buttons =
-      new Collection();
-
-    this.selectMenus =
-      new Collection();
-
-    this.modals =
-      new Collection();
-
-    this.cooldowns =
-      new Collection();
+    this.commands = new Collection();
+    this.events = new Collection();
+    this.buttons = new Collection();
+    this.selectMenus = new Collection();
+    this.modals = new Collection();
+    this.cooldowns = new Collection();
 
     this.db = null;
 
@@ -262,7 +248,7 @@ class TitanBot extends Client {
          ======================================================== */
 
       startupLog(
-        'Registering slash commands to Discord server...'
+        `Registering slash commands to guild ${GUILD_ID}...`
       );
 
       await this.registerCommands();
@@ -966,6 +952,14 @@ class TitanBot extends Client {
         `Registering slash commands to guild ${GUILD_ID}...`
       );
 
+      /*
+       * commandLoader.js verzorgt:
+       * 1. Oude guild commands verwijderen
+       * 2. Nieuwe commands registreren
+       *
+       * Daarom verwijderen we hier NIET nogmaals de commands.
+       */
+
       await registerSlashCommands(
         this,
         {
@@ -978,14 +972,14 @@ class TitanBot extends Client {
       );
 
       startupLog(
-        `✅ Commands registered to White Angels server ${GUILD_ID}`
+        `✅ Slash commands successfully registered to guild ${GUILD_ID}`
       );
 
     } catch (
       error
     ) {
       logger.error(
-        'Error registering commands:',
+        '❌ Error registering slash commands:',
         error
       );
 
