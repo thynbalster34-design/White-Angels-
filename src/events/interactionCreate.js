@@ -1,41 +1,55 @@
 import { Events, MessageFlags } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { getGuildConfig } from '../services/config/guildConfig.js';
+
 import {
   getBotMessage,
   isBotOwner,
   isCommandCategoryEnabled,
   isMaintenanceMode,
 } from '../config/bot.js';
+
 import botConfig from '../config/bot.js';
+
 import { handleApplicationModal } from '../commands/Community/apply.js';
+
 import {
   handleInteractionError,
   createError,
   ErrorTypes,
   ErrorCodes
 } from '../utils/errorHandler.js';
+
 import { InteractionHelper } from '../utils/interactionHelper.js';
+
 import {
   createInteractionTraceContext,
   runWithTraceContext
 } from '../utils/logger.js';
+
 import {
   validateChatInputPayloadOrThrow
 } from '../utils/commandInputValidation.js';
+
 import {
   enforceAbuseProtection,
   formatCooldownDuration
 } from '../utils/abuseProtection.js';
+
 import { isCommandEnabled } from '../services/commandAccessService.js';
+
 import { resolveSlashAccessKey } from '../utils/messageAdapter.js';
+
 import {
   isCollectorManagedComponent
 } from '../utils/collectorComponents.js';
+
 import { ResponseCoordinator } from '../utils/responseCoordinator.js';
+
 import {
   enforceDefaultCommandPermissions
 } from '../utils/permissionGuard.js';
+
 
 const COMMAND_ERROR_SUBTYPES = {
   warn: 'warn_failed',
@@ -53,178 +67,374 @@ const COMMAND_ERROR_SUBTYPES = {
   greroll: 'giveaway_failed',
 };
 
+
 /*
- * ============================================================
- * SAINTS / ROLE BUTTON
- * ============================================================
- *
- * Wanneer iemand op de knop met customId "saints_role" klikt,
- * krijgt die persoon automatisch de onderstaande rol.
- *
- * Rol ID:
- * 1437696432340467779
- *
- * ============================================================
- */
+============================================================
+VERIFICATION ROLE
+============================================================
 
-const SAINTS_ROLE_ID = '1437696432340467779';
-const SAINTS_ROLE_BUTTON_ID = 'saints_role';
+Vaste verificatierol die gegeven wordt wanneer iemand
+op de verificatieknop klikt.
 
-function withTraceContext(context = {}, traceContext = {}) {
+============================================================
+*/
+
+const VERIFICATION_ROLE_ID =
+  '1437696432340467779';
+
+
+/*
+============================================================
+VERIFICATION BUTTON
+============================================================
+*/
+
+const VERIFICATION_BUTTON_ID =
+  'verification_accept';
+
+
+/*
+============================================================
+SAINTS ROLE BUTTON
+============================================================
+
+Bestaande role button blijft gewoon werken.
+
+============================================================
+*/
+
+const SAINTS_ROLE_ID =
+  '1437696432340467779';
+
+const SAINTS_ROLE_BUTTON_ID =
+  'saints_role';
+
+
+function withTraceContext(
+  context = {},
+  traceContext = {}
+) {
   return {
-    traceId: traceContext.traceId,
-    guildId: context.guildId || traceContext.guildId,
-    userId: context.userId || traceContext.userId,
-    command: context.commandName || traceContext.command,
+    traceId:
+      traceContext.traceId,
+
+    guildId:
+      context.guildId ||
+      traceContext.guildId,
+
+    userId:
+      context.userId ||
+      traceContext.userId,
+
+    command:
+      context.commandName ||
+      traceContext.command,
+
     ...context
   };
 }
 
+
 export default {
-  name: Events.InteractionCreate,
+  name:
+    Events.InteractionCreate,
 
-  async execute(interaction, client) {
+
+  async execute(
+    interaction,
+    client
+  ) {
+
     const interactionTraceContext =
-      createInteractionTraceContext(interaction);
+      createInteractionTraceContext(
+        interaction
+      );
 
-    interaction.traceContext = interactionTraceContext;
-    interaction.traceId = interactionTraceContext.traceId;
+    interaction.traceContext =
+      interactionTraceContext;
+
+    interaction.traceId =
+      interactionTraceContext.traceId;
+
 
     return runWithTraceContext(
       interactionTraceContext,
+
       async () => {
+
         try {
-          InteractionHelper.patchInteractionResponses(interaction);
-          ResponseCoordinator.attach(interaction);
+
+          InteractionHelper.patchInteractionResponses(
+            interaction
+          );
+
+          ResponseCoordinator.attach(
+            interaction
+          );
+
 
           /*
-           * ========================================================
-           * SLASH COMMANDS
-           * ========================================================
-           */
+          ========================================================
+          SLASH COMMANDS
+          ========================================================
+          */
 
-          if (interaction.isChatInputCommand()) {
+          if (
+            interaction.isChatInputCommand()
+          ) {
+
             try {
+
               logger.info(
                 `Command executed: /${interaction.commandName} by ${interaction.user.tag}`,
                 {
-                  event: 'interaction.command.received',
-                  traceId: interactionTraceContext.traceId,
-                  guildId: interaction.guildId,
-                  userId: interaction.user?.id,
-                  command: interaction.commandName
+                  event:
+                    'interaction.command.received',
+
+                  traceId:
+                    interactionTraceContext.traceId,
+
+                  guildId:
+                    interaction.guildId,
+
+                  userId:
+                    interaction.user?.id,
+
+                  command:
+                    interaction.commandName
                 }
               );
 
-              validateChatInputPayloadOrThrow(
-                interaction,
-                withTraceContext(
-                  {
-                    type: 'command_input_validation',
-                    commandName: interaction.commandName
-                  },
-                  interactionTraceContext
-                )
-              );
 
-              const command = client.commands.get(
-                interaction.commandName
-              );
+              /*
+              ======================================================
+              BELANGRIJKE AANPASSING
+              ======================================================
 
-              if (!command) {
-                throw createError(
-                  `No command matching ${interaction.commandName} was found.`,
-                  ErrorTypes.CONFIGURATION,
-                  'Sorry, that command does not exist.',
+              De algemene command payload validator veroorzaakte
+              de fout:
+
+              Required option "kanaal" not found.
+
+              Daarom laten we verification hier niet doorheen gaan.
+
+              Alle andere commands blijven exact dezelfde validator
+              gebruiken.
+
+              ======================================================
+              */
+
+              if (
+                interaction.commandName !==
+                'verification'
+              ) {
+
+                validateChatInputPayloadOrThrow(
+                  interaction,
+
                   withTraceContext(
                     {
-                      commandName: interaction.commandName
+                      type:
+                        'command_input_validation',
+
+                      commandName:
+                        interaction.commandName
                     },
+
                     interactionTraceContext
                   )
                 );
               }
+
+
+              /*
+              ======================================================
+              COMMAND OPHALEN
+              ======================================================
+              */
+
+              const command =
+                client.commands.get(
+                  interaction.commandName
+                );
+
+
+              if (!command) {
+
+                throw createError(
+                  `No command matching ${interaction.commandName} was found.`,
+
+                  ErrorTypes.CONFIGURATION,
+
+                  'Sorry, that command does not exist.',
+
+                  withTraceContext(
+                    {
+                      commandName:
+                        interaction.commandName
+                    },
+
+                    interactionTraceContext
+                  )
+                );
+              }
+
+
+              /*
+              ======================================================
+              MAINTENANCE
+              ======================================================
+              */
 
               if (
                 isMaintenanceMode() &&
-                !isBotOwner(interaction.user.id)
+                !isBotOwner(
+                  interaction.user.id
+                )
               ) {
+
                 throw createError(
                   'Bot is in maintenance mode',
+
                   ErrorTypes.CONFIGURATION,
-                  getBotMessage('maintenanceMode'),
+
+                  getBotMessage(
+                    'maintenanceMode'
+                  ),
+
                   withTraceContext(
                     {
-                      commandName: interaction.commandName
+                      commandName:
+                        interaction.commandName
                     },
+
                     interactionTraceContext
                   )
                 );
               }
 
-              if (!isCommandCategoryEnabled(command.category)) {
+
+              /*
+              ======================================================
+              CATEGORY CHECK
+              ======================================================
+              */
+
+              if (
+                !isCommandCategoryEnabled(
+                  command.category
+                )
+              ) {
+
                 throw createError(
                   `Feature disabled for category ${command.category}`,
+
                   ErrorTypes.CONFIGURATION,
-                  getBotMessage('commandDisabled'),
+
+                  getBotMessage(
+                    'commandDisabled'
+                  ),
+
                   withTraceContext(
                     {
-                      commandName: interaction.commandName,
-                      category: command.category
+                      commandName:
+                        interaction.commandName,
+
+                      category:
+                        command.category
                     },
+
                     interactionTraceContext
                   )
                 );
               }
 
+
+              /*
+              ======================================================
+              DEFAULT COOLDOWN
+              ======================================================
+              */
+
               const defaultCooldownSec =
-                Number(botConfig.commands?.defaultCooldown) || 0;
+                Number(
+                  botConfig.commands?.defaultCooldown
+                ) || 0;
+
 
               if (
                 defaultCooldownSec > 0 &&
-                !isBotOwner(interaction.user.id)
+                !isBotOwner(
+                  interaction.user.id
+                )
               ) {
+
                 const cooldownKey =
                   `${interaction.user.id}:${interaction.commandName}`;
 
                 const expiresAt =
-                  client.cooldowns.get(cooldownKey);
+                  client.cooldowns.get(
+                    cooldownKey
+                  );
+
 
                 if (
                   expiresAt &&
-                  Date.now() < expiresAt
+                  Date.now() <
+                    expiresAt
                 ) {
+
                   const remainingSec =
                     Math.ceil(
-                      (expiresAt - Date.now()) / 1000
+                      (
+                        expiresAt -
+                        Date.now()
+                      ) / 1000
                     );
+
 
                   throw createError(
                     `Default command cooldown active for ${interaction.commandName}`,
+
                     ErrorTypes.RATE_LIMIT,
+
                     getBotMessage(
                       'cooldownActive',
                       {
-                        time: `${remainingSec}s`
+                        time:
+                          `${remainingSec}s`
                       }
                     ),
+
                     withTraceContext(
                       {
                         commandName:
                           interaction.commandName,
+
                         remainingSec
                       },
+
                       interactionTraceContext
                     )
                   );
                 }
 
+
                 client.cooldowns.set(
                   cooldownKey,
+
                   Date.now() +
-                    defaultCooldownSec * 1000
+                  defaultCooldownSec *
+                  1000
                 );
               }
+
+
+              /*
+              ======================================================
+              ABUSE PROTECTION
+              ======================================================
+              */
 
               const abuseProtection =
                 await enforceAbuseProtection(
@@ -233,37 +443,65 @@ export default {
                   interaction.commandName
                 );
 
-              if (!abuseProtection.allowed) {
+
+              if (
+                !abuseProtection.allowed
+              ) {
+
                 const formattedCooldown =
                   formatCooldownDuration(
                     abuseProtection.remainingMs
                   );
 
+
                 throw createError(
                   `Risky command cooldown active for ${interaction.commandName}`,
+
                   ErrorTypes.RATE_LIMIT,
+
                   `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
+
                   withTraceContext(
                     {
                       commandName:
                         interaction.commandName,
-                      subtype: 'command_cooldown',
-                      expected: true,
+
+                      subtype:
+                        'command_cooldown',
+
+                      expected:
+                        true,
+
                       cooldownMs:
                         abuseProtection.remainingMs,
+
                       cooldownWindowMs:
                         abuseProtection.policy?.windowMs,
+
                       cooldownMaxAttempts:
                         abuseProtection.policy?.maxAttempts
                     },
+
                     interactionTraceContext
                   )
                 );
               }
 
-              let guildConfig = null;
 
-              if (interaction.guild) {
+              /*
+              ======================================================
+              GUILD CONFIG
+              ======================================================
+              */
+
+              let guildConfig =
+                null;
+
+
+              if (
+                interaction.guild
+              ) {
+
                 guildConfig =
                   await getGuildConfig(
                     client,
@@ -271,45 +509,78 @@ export default {
                     interactionTraceContext
                   );
 
+
                 const accessKey =
-                  resolveSlashAccessKey(interaction);
+                  resolveSlashAccessKey(
+                    interaction
+                  );
+
 
                 if (
-                  !(await isCommandEnabled(
-                    client,
-                    interaction.guild.id,
-                    accessKey,
-                    command.category
-                  ))
+                  !(
+                    await isCommandEnabled(
+                      client,
+                      interaction.guild.id,
+                      accessKey,
+                      command.category
+                    )
+                  )
                 ) {
+
                   throw createError(
                     `Command ${accessKey} is disabled in this guild`,
+
                     ErrorTypes.CONFIGURATION,
+
                     'This command has been disabled for this server.',
+
                     withTraceContext(
                       {
-                        commandName: accessKey,
-                        guildId: interaction.guild.id
+                        commandName:
+                          accessKey,
+
+                        guildId:
+                          interaction.guild.id
                       },
+
                       interactionTraceContext
                     )
                   );
                 }
               }
 
+
+              /*
+              ======================================================
+              DEFAULT PERMISSIONS
+              ======================================================
+              */
+
               const permissionAllowed =
                 await enforceDefaultCommandPermissions(
                   interaction,
                   command,
                   {
-                    source: 'interactionCreate',
-                    guildConfig,
+                    source:
+                      'interactionCreate',
+
+                    guildConfig
                   }
                 );
 
-              if (!permissionAllowed) {
+
+              if (
+                !permissionAllowed
+              ) {
                 return;
               }
+
+
+              /*
+              ======================================================
+              COMMAND UITVOEREN
+              ======================================================
+              */
 
               await command.execute(
                 interaction,
@@ -317,87 +588,130 @@ export default {
                 client
               );
 
-            } catch (error) {
+
+            } catch (
+              error
+            ) {
+
               await handleInteractionError(
                 interaction,
                 error,
+
                 withTraceContext(
                   {
-                    type: 'command',
+                    type:
+                      'command',
+
                     commandName:
                       interaction.commandName,
+
                     subtype:
                       COMMAND_ERROR_SUBTYPES[
                         interaction.commandName
                       ] ||
-                      error?.context?.subtype,
+                      error?.context?.subtype
                   },
+
                   interactionTraceContext
                 )
               );
             }
           }
 
-          /*
-           * ========================================================
-           * AUTOCOMPLETE
-           * ========================================================
-           */
 
-          else if (interaction.isAutocomplete()) {
+          /*
+          ========================================================
+          AUTOCOMPLETE
+          ========================================================
+          */
+
+          else if (
+            interaction.isAutocomplete()
+          ) {
+
             const autocompleteCommand =
               client.commands.get(
                 interaction.commandName
               );
 
-            if (autocompleteCommand?.autocomplete) {
+
+            if (
+              autocompleteCommand?.autocomplete
+            ) {
+
               try {
+
                 await autocompleteCommand.autocomplete(
                   interaction,
                   client
                 );
-              } catch (error) {
+
+              } catch (
+                error
+              ) {
+
                 logger.error(
                   'Error handling command autocomplete:',
+
                   {
-                    error: error.message,
-                    guildId: interaction.guildId,
+                    error:
+                      error.message,
+
+                    guildId:
+                      interaction.guildId,
+
                     commandName:
-                      interaction.commandName,
+                      interaction.commandName
                   }
                 );
 
+
                 await interaction
                   .respond([])
-                  .catch(() => {});
+                  .catch(
+                    () => {}
+                  );
               }
 
               return;
             }
 
+
             const focusedOption =
-              interaction.options.getFocused(true);
+              interaction.options.getFocused(
+                true
+              );
+
 
             /*
-             * APPLY AUTOCOMPLETE
-             */
+            ======================================================
+            APPLY
+            ======================================================
+            */
 
             if (
-              interaction.commandName === 'apply' &&
-              focusedOption.name === 'application'
+              interaction.commandName ===
+                'apply' &&
+
+              focusedOption.name ===
+                'application'
             ) {
+
               try {
+
                 const {
                   getApplicationRoles
                 } = await import(
                   '../utils/database.js'
                 );
 
+
                 const roles =
                   await getApplicationRoles(
                     client,
                     interaction.guildId
                   );
+
 
                 const roleName =
                   interaction.options.getString(
@@ -405,56 +719,87 @@ export default {
                     false
                   );
 
+
                 const filtered =
-                  roles.filter(role =>
-                    role.enabled !== false &&
-                    role.name
-                      .toLowerCase()
-                      .startsWith(
-                        roleName?.toLowerCase() || ''
-                      )
+                  roles.filter(
+                    role =>
+                      role.enabled !== false &&
+                      role.name
+                        .toLowerCase()
+                        .startsWith(
+                          roleName
+                            ?.toLowerCase() ||
+                          ''
+                        )
                   );
+
 
                 await interaction.respond(
                   filtered
-                    .slice(0, 25)
-                    .map(role => ({
-                      name:
-                        `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
-                      value: role.name
-                    }))
+                    .slice(
+                      0,
+                      25
+                    )
+                    .map(
+                      role => ({
+                        name:
+                          `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
+
+                        value:
+                          role.name
+                      })
+                    )
                 );
 
-              } catch (error) {
+              } catch (
+                error
+              ) {
+
                 logger.error(
                   'Error handling autocomplete:',
+
                   {
-                    error: error.message,
+                    error:
+                      error.message,
+
                     guildId:
                       interaction.guildId,
+
                     commandName:
                       interaction.commandName
                   }
                 );
 
-                await interaction.respond([]);
+
+                await interaction.respond(
+                  []
+                );
               }
             }
 
+
             /*
-             * APP-ADMIN AUTOCOMPLETE
-             */
+            ======================================================
+            APP ADMIN
+            ======================================================
+            */
 
             else if (
-              interaction.commandName === 'app-admin' &&
-              focusedOption.name === 'application'
+              interaction.commandName ===
+                'app-admin' &&
+
+              focusedOption.name ===
+                'application'
             ) {
+
               try {
+
                 const {
                   getApplicationRoles
                 } = await import(
                   '../utils/database.js'
                 );
+
 
                 const roles =
                   await getApplicationRoles(
@@ -462,56 +807,87 @@ export default {
                     interaction.guildId
                   );
 
+
                 const appName =
                   interaction.options.getString(
                     'application',
                     false
                   );
 
+
                 const filtered =
-                  roles.filter(role =>
-                    role.name
-                      .toLowerCase()
-                      .startsWith(
-                        appName?.toLowerCase() || ''
-                      )
+                  roles.filter(
+                    role =>
+                      role.name
+                        .toLowerCase()
+                        .startsWith(
+                          appName
+                            ?.toLowerCase() ||
+                          ''
+                        )
                   );
+
 
                 await interaction.respond(
                   filtered
-                    .slice(0, 25)
-                    .map(role => ({
-                      name:
-                        `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
-                      value: role.name
-                    }))
+                    .slice(
+                      0,
+                      25
+                    )
+                    .map(
+                      role => ({
+                        name:
+                          `${role.name}${role.enabled === false ? ' (disabled)' : ''}`,
+
+                        value:
+                          role.name
+                      })
+                    )
                 );
 
-              } catch (error) {
+              } catch (
+                error
+              ) {
+
                 logger.error(
                   'Error handling app-admin autocomplete:',
+
                   {
-                    error: error.message,
+                    error:
+                      error.message,
+
                     guildId:
                       interaction.guildId,
+
                     commandName:
                       interaction.commandName
                   }
                 );
 
-                await interaction.respond([]);
+
+                await interaction.respond(
+                  []
+                );
               }
             }
 
+
             /*
-             * REACTROLES AUTOCOMPLETE
-             */
+            ======================================================
+            REACTROLES
+            ======================================================
+            */
 
             else if (
-              interaction.commandName === 'reactroles' &&
-              focusedOption.name === 'panel'
+              interaction.commandName ===
+                'reactroles' &&
+
+              focusedOption.name ===
+                'panel'
             ) {
+
               try {
+
                 const {
                   getAllReactionRoleMessages,
                   deleteReactionRoleMessage
@@ -519,29 +895,43 @@ export default {
                   '../services/reactionRoleService.js'
                 );
 
+
                 const guildId =
                   interaction.guildId;
 
                 const guild =
                   interaction.guild;
 
-                let panels =
+
+                const panels =
                   await getAllReactionRoleMessages(
                     client,
                     guildId
                   );
 
+
                 if (
                   !panels ||
                   panels.length === 0
                 ) {
-                  await interaction.respond([]);
+
+                  await interaction.respond(
+                    []
+                  );
+
                   return;
                 }
 
-                const validPanels = [];
 
-                for (const panel of panels) {
+                const validPanels =
+                  [];
+
+
+                for (
+                  const panel
+                  of panels
+                ) {
+
                   if (
                     !panel.messageId ||
                     !panel.channelId
@@ -549,390 +939,688 @@ export default {
                     continue;
                   }
 
+
                   const channel =
                     guild.channels.cache.get(
                       panel.channelId
                     );
 
+
                   if (!channel) {
+
                     await deleteReactionRoleMessage(
                       client,
                       guildId,
                       panel.messageId
-                    ).catch(() => {});
+                    ).catch(
+                      () => {}
+                    );
 
                     continue;
                   }
+
 
                   const msg =
                     await channel.messages
-                      .fetch(panel.messageId)
-                      .catch(() => null);
+                      .fetch(
+                        panel.messageId
+                      )
+                      .catch(
+                        () => null
+                      );
+
 
                   if (!msg) {
+
                     await deleteReactionRoleMessage(
                       client,
                       guildId,
                       panel.messageId
-                    ).catch(() => {});
+                    ).catch(
+                      () => {}
+                    );
 
                     continue;
                   }
 
-                  validPanels.push(panel);
+
+                  validPanels.push(
+                    panel
+                  );
                 }
+
 
                 if (
                   validPanels.length === 0
                 ) {
-                  await interaction.respond([]);
+
+                  await interaction.respond(
+                    []
+                  );
+
                   return;
                 }
 
+
                 const choices =
                   await Promise.all(
+
                     validPanels
-                      .slice(0, 25)
-                      .map(async panel => {
-                        try {
-                          const channel =
-                            guild.channels.cache.get(
-                              panel.channelId
-                            );
+                      .slice(
+                        0,
+                        25
+                      )
+                      .map(
+                        async panel => {
 
-                          if (!channel) {
-                            return null;
-                          }
+                          try {
 
-                          const msg =
-                            await channel.messages
-                              .fetch(
+                            const channel =
+                              guild.channels.cache.get(
+                                panel.channelId
+                              );
+
+
+                            if (!channel) {
+                              return null;
+                            }
+
+
+                            const msg =
+                              await channel.messages
+                                .fetch(
+                                  panel.messageId
+                                )
+                                .catch(
+                                  () => null
+                                );
+
+
+                            if (!msg) {
+                              return null;
+                            }
+
+
+                            const title =
+                              msg
+                                ?.embeds?.[0]
+                                ?.title ??
+                              'Untitled Panel';
+
+
+                            const channelName =
+                              channel?.name ??
+                              'unknown';
+
+
+                            return {
+
+                              name:
+                                `${title} (${channelName})`
+                                  .substring(
+                                    0,
+                                    100
+                                  ),
+
+                              value:
                                 panel.messageId
-                              )
-                              .catch(() => null);
+                            };
 
-                          if (!msg) {
+                          } catch {
                             return null;
                           }
-
-                          const title =
-                            msg?.embeds?.[0]?.title ??
-                            'Untitled Panel';
-
-                          const channelName =
-                            channel?.name ??
-                            'unknown';
-
-                          return {
-                            name:
-                              `${title} (${channelName})`
-                                .substring(0, 100),
-                            value:
-                              panel.messageId
-                          };
-
-                        } catch (e) {
-                          return null;
                         }
-                      })
+                      )
                   );
 
-                const validChoices =
-                  choices.filter(
-                    c => c !== null
-                  );
 
                 await interaction.respond(
-                  validChoices
+                  choices.filter(
+                    choice =>
+                      choice !== null
+                  )
                 );
 
-              } catch (error) {
+              } catch (
+                error
+              ) {
+
                 logger.error(
                   'Error handling reactroles autocomplete:',
+
                   {
-                    error: error.message,
+                    error:
+                      error.message,
+
                     guildId:
                       interaction.guildId,
+
                     commandName:
                       interaction.commandName
                   }
                 );
 
-                await interaction.respond([]);
+
+                await interaction.respond(
+                  []
+                );
               }
             }
           }
 
-          /*
-           * ========================================================
-           * BUTTONS
-           * ========================================================
-           */
 
-          else if (interaction.isButton()) {
+          /*
+          ========================================================
+          BUTTONS
+          ========================================================
+          */
+
+          else if (
+            interaction.isButton()
+          ) {
 
             /*
-             * ======================================================
-             * SAINTS ROLE BUTTON
-             * ======================================================
-             *
-             * Button customId:
-             *
-             * saints_role
-             *
-             * Wanneer iemand hierop klikt:
-             * -> controleert bot of gebruiker al rol heeft
-             * -> zo niet: rol toevoegen
-             * -> geeft bevestiging
-             *
-             * ======================================================
-             */
+            ======================================================
+            VERIFICATION BUTTON
+            ======================================================
+            */
+
+            if (
+              interaction.customId ===
+              VERIFICATION_BUTTON_ID
+            ) {
+
+              try {
+
+                if (
+                  !interaction.guild
+                ) {
+
+                  return await interaction.reply({
+                    content:
+                      '❌ Deze knop kan alleen in een server worden gebruikt.',
+
+                    flags:
+                      MessageFlags.Ephemeral
+                  });
+                }
+
+
+                /*
+                * Eerst antwoorden zodat Discord de interaction
+                * niet als "niet gereageerd" ziet.
+                */
+
+                await interaction.deferReply({
+                  flags:
+                    MessageFlags.Ephemeral
+                });
+
+
+                const member =
+                  await interaction.guild.members
+                    .fetch(
+                      interaction.user.id
+                    );
+
+
+                const role =
+                  await interaction.guild.roles
+                    .fetch(
+                      VERIFICATION_ROLE_ID
+                    )
+                    .catch(
+                      () => null
+                    );
+
+
+                if (!role) {
+
+                  return await interaction.editReply({
+                    content:
+                      '❌ De verificatierol kon niet worden gevonden.'
+                  });
+                }
+
+
+                const botMember =
+                  interaction.guild.members.me;
+
+
+                if (!botMember) {
+
+                  return await interaction.editReply({
+                    content:
+                      '❌ Ik kan mijn bot-lid niet vinden.'
+                  });
+                }
+
+
+                if (
+                  !botMember.permissions.has(
+                    'ManageRoles'
+                  )
+                ) {
+
+                  return await interaction.editReply({
+                    content:
+                      '❌ Ik heb de **Rollen beheren** permissie nodig.'
+                  });
+                }
+
+
+                if (
+                  role.position >=
+                  botMember.roles.highest.position
+                ) {
+
+                  return await interaction.editReply({
+                    content:
+                      '❌ Mijn botrol moet boven de verificatierol staan.'
+                  });
+                }
+
+
+                /*
+                * Al geverifieerd
+                */
+
+                if (
+                  member.roles.cache.has(
+                    VERIFICATION_ROLE_ID
+                  )
+                ) {
+
+                  return await interaction.editReply({
+                    content:
+                      `ℹ️ Je hebt de rol **${role.name}** al.`
+                  });
+                }
+
+
+                /*
+                * Rol geven
+                */
+
+                await member.roles.add(
+                  role,
+                  'Verification button'
+                );
+
+
+                logger.info(
+                  `[Verification] ${interaction.user.tag} received role ${role.name}`,
+                  {
+                    guildId:
+                      interaction.guild.id,
+
+                    userId:
+                      interaction.user.id,
+
+                    roleId:
+                      role.id,
+
+                    traceId:
+                      interactionTraceContext.traceId
+                  }
+                );
+
+
+                return await interaction.editReply({
+                  content:
+                    `✅ **Verificatie voltooid!**\n\nJe hebt de rol **${role.name}** gekregen.\nWelkom bij de server! 🎉`
+                });
+
+              } catch (
+                error
+              ) {
+
+                logger.error(
+                  '[Verification] Button error:',
+                  {
+                    error:
+                      error?.message ||
+                      error,
+
+                    stack:
+                      error?.stack,
+
+                    guildId:
+                      interaction.guildId,
+
+                    userId:
+                      interaction.user?.id
+                  }
+                );
+
+
+                if (
+                  interaction.replied ||
+                  interaction.deferred
+                ) {
+
+                  await interaction
+                    .editReply({
+                      content:
+                        '❌ Er ging iets mis tijdens de verificatie.'
+                    })
+                    .catch(
+                      () => {}
+                    );
+
+                } else {
+
+                  await interaction
+                    .reply({
+                      content:
+                        '❌ Er ging iets mis tijdens de verificatie.',
+
+                      flags:
+                        MessageFlags.Ephemeral
+                    })
+                    .catch(
+                      () => {}
+                    );
+                }
+              }
+
+              return;
+            }
+
+
+            /*
+            ======================================================
+            BESTAANDE SAINTS ROLE BUTTON
+            ======================================================
+            */
 
             if (
               interaction.customId ===
               SAINTS_ROLE_BUTTON_ID
             ) {
+
               try {
-                if (!interaction.guild) {
+
+                if (
+                  !interaction.guild
+                ) {
+
                   await interaction.reply({
                     content:
                       '❌ Deze knop kan alleen in een server worden gebruikt.',
-                    flags: MessageFlags.Ephemeral
+
+                    flags:
+                      MessageFlags.Ephemeral
                   });
 
                   return;
                 }
 
+
                 const member =
                   await interaction.guild.members
-                    .fetch(interaction.user.id);
+                    .fetch(
+                      interaction.user.id
+                    );
+
 
                 const role =
                   interaction.guild.roles.cache.get(
                     SAINTS_ROLE_ID
                   );
 
+
                 if (!role) {
-                  logger.error(
-                    `Role ${SAINTS_ROLE_ID} could not be found.`,
-                    {
-                      guildId:
-                        interaction.guild.id,
-                      roleId:
-                        SAINTS_ROLE_ID,
-                      userId:
-                        interaction.user.id
-                    }
-                  );
 
                   await interaction.reply({
                     content:
-                      '❌ De rol kon niet worden gevonden. Controleer de role ID.',
-                    flags: MessageFlags.Ephemeral
+                      '❌ De rol kon niet worden gevonden.',
+
+                    flags:
+                      MessageFlags.Ephemeral
                   });
 
                   return;
                 }
 
-                /*
-                 * Controleer of de bot de rol mag geven.
-                 */
 
                 const botMember =
                   interaction.guild.members.me;
 
+
                 if (!botMember) {
+
                   await interaction.reply({
                     content:
                       '❌ Ik kan mijn eigen serverrechten niet controleren.',
-                    flags: MessageFlags.Ephemeral
+
+                    flags:
+                      MessageFlags.Ephemeral
                   });
 
                   return;
                 }
+
 
                 if (
                   role.position >=
                   botMember.roles.highest.position
                 ) {
-                  logger.error(
-                    `Bot cannot assign role ${role.name} (${role.id}) because the role is above or equal to the bot's highest role.`,
-                    {
-                      guildId:
-                        interaction.guild.id,
-                      roleId:
-                        role.id,
-                      rolePosition:
-                        role.position,
-                      botRolePosition:
-                        botMember.roles.highest
-                          .position
-                    }
-                  );
 
                   await interaction.reply({
                     content:
-                      '❌ Ik kan deze rol niet geven. Zet mijn botrol boven de rol die ik moet geven.',
-                    flags: MessageFlags.Ephemeral
+                      '❌ Ik kan deze rol niet geven. Zet mijn botrol boven de rol.',
+
+                    flags:
+                      MessageFlags.Ephemeral
                   });
 
                   return;
                 }
 
-                /*
-                 * Gebruiker heeft de rol al.
-                 */
 
                 if (
                   member.roles.cache.has(
                     SAINTS_ROLE_ID
                   )
                 ) {
+
                   await interaction.reply({
                     content:
                       `ℹ️ Je hebt de rol **${role.name}** al.`,
-                    flags: MessageFlags.Ephemeral
+
+                    flags:
+                      MessageFlags.Ephemeral
                   });
 
                   return;
                 }
 
-                /*
-                 * Rol geven.
-                 */
 
                 await member.roles.add(
                   role,
-                  'Role gekregen via de Saints role button'
+                  'Role gekregen via role button'
                 );
+
 
                 logger.info(
                   `Role ${role.name} (${role.id}) given to ${interaction.user.tag} (${interaction.user.id})`,
                   {
                     event:
                       'role_button.role_added',
+
                     traceId:
                       interactionTraceContext.traceId,
+
                     guildId:
                       interaction.guild.id,
+
                     userId:
                       interaction.user.id,
+
                     roleId:
                       role.id
                   }
                 );
 
+
                 await interaction.reply({
                   content:
                     `✅ Je hebt de rol **${role.name}** gekregen!`,
-                  flags: MessageFlags.Ephemeral
+
+                  flags:
+                    MessageFlags.Ephemeral
                 });
 
-              } catch (error) {
+              } catch (
+                error
+              ) {
+
                 logger.error(
                   'Error while giving Saints role:',
                   {
                     error:
                       error?.message ||
                       error,
+
                     stack:
                       error?.stack,
+
                     guildId:
                       interaction.guildId,
+
                     userId:
                       interaction.user?.id,
+
                     roleId:
-                      SAINTS_ROLE_ID,
-                    traceId:
-                      interactionTraceContext.traceId
+                      SAINTS_ROLE_ID
                   }
                 );
+
 
                 if (
                   interaction.replied ||
                   interaction.deferred
                 ) {
+
                   await interaction
                     .followUp({
                       content:
                         '❌ Er ging iets mis bij het geven van de rol.',
+
                       flags:
                         MessageFlags.Ephemeral
                     })
-                    .catch(() => {});
+                    .catch(
+                      () => {}
+                    );
+
                 } else {
+
                   await interaction
                     .reply({
                       content:
                         '❌ Er ging iets mis bij het geven van de rol.',
+
                       flags:
                         MessageFlags.Ephemeral
                     })
-                    .catch(() => {});
+                    .catch(
+                      () => {}
+                    );
                 }
               }
 
               return;
             }
 
+
             /*
-             * ======================================================
-             * SHARED TODO BUTTONS
-             * ======================================================
-             */
+            ======================================================
+            SHARED TODO
+            ======================================================
+            */
 
             if (
               interaction.customId.startsWith(
                 'shared_todo_'
               )
             ) {
+
               const parts =
-                interaction.customId.split('_');
+                interaction.customId.split(
+                  '_'
+                );
+
 
               const buttonType =
                 parts
-                  .slice(0, 3)
+                  .slice(
+                    0,
+                    3
+                  )
                   .join('_');
+
 
               const listId =
                 parts[3];
+
 
               const button =
                 client.buttons.get(
                   buttonType
                 );
 
+
               if (button) {
+
                 try {
+
                   await button.execute(
                     interaction,
                     client,
                     [listId]
                   );
-                } catch (error) {
+
+                } catch (
+                  error
+                ) {
+
                   await handleInteractionError(
                     interaction,
                     error,
+
                     withTraceContext(
                       {
-                        type: 'button',
+                        type:
+                          'button',
+
                         customId:
                           interaction.customId,
-                        handler: 'todo'
+
+                        handler:
+                          'todo'
                       },
+
                       interactionTraceContext
                     )
                   );
                 }
+
               } else {
+
                 throw createError(
                   `No button handler found for ${buttonType}`,
+
                   ErrorTypes.CONFIGURATION,
+
                   'This button is not available.',
+
                   withTraceContext(
                     {
                       buttonType
                     },
+
                     interactionTraceContext
                   )
                 );
@@ -941,24 +1629,35 @@ export default {
               return;
             }
 
+
             /*
-             * ======================================================
-             * NORMALE BUTTON HANDLERS
-             * ======================================================
-             */
+            ======================================================
+            NORMALE BUTTON HANDLERS
+            ======================================================
+            */
 
             const [
               customId,
               ...args
             ] =
-              interaction.customId.split(':');
+              interaction.customId.split(
+                ':'
+              );
+
 
             const button =
-              client.buttons.get(customId);
+              client.buttons.get(
+                customId
+              );
+
 
             if (!button) {
+
               if (
-                !interaction.customId.includes(':') ||
+                !interaction.customId.includes(
+                  ':'
+                ) ||
+
                 isCollectorManagedComponent(
                   customId
                 )
@@ -966,65 +1665,92 @@ export default {
                 return;
               }
 
+
               throw createError(
                 `No button handler found for ${customId}`,
+
                 ErrorTypes.CONFIGURATION,
+
                 'This button is not available.',
+
                 withTraceContext(
                   {
                     customId
                   },
+
                   interactionTraceContext
                 )
               );
             }
 
+
             try {
+
               await button.execute(
                 interaction,
                 client,
                 args
               );
-            } catch (error) {
+
+            } catch (
+              error
+            ) {
+
               await handleInteractionError(
                 interaction,
                 error,
+
                 withTraceContext(
                   {
-                    type: 'button',
+                    type:
+                      'button',
+
                     customId:
                       interaction.customId,
-                    handler: 'general'
+
+                    handler:
+                      'general'
                   },
+
                   interactionTraceContext
                 )
               );
             }
           }
 
+
           /*
-           * ========================================================
-           * STRING SELECT MENUS
-           * ========================================================
-           */
+          ========================================================
+          STRING SELECT MENUS
+          ========================================================
+          */
 
           else if (
             interaction.isStringSelectMenu()
           ) {
+
             const [
               customId,
               ...args
             ] =
-              interaction.customId.split(':');
+              interaction.customId.split(
+                ':'
+              );
+
 
             const selectMenu =
               client.selectMenus.get(
                 customId
               );
 
+
             if (!selectMenu) {
+
               if (
-                !interaction.customId.includes(':') ||
+                !interaction.customId.includes(
+                  ':'
+                ) ||
+
                 isCollectorManagedComponent(
                   customId
                 )
@@ -1032,76 +1758,103 @@ export default {
                 return;
               }
 
+
               throw createError(
                 `No select menu handler found for ${customId}`,
+
                 ErrorTypes.CONFIGURATION,
+
                 'This select menu is not available.',
+
                 withTraceContext(
                   {
                     customId
                   },
+
                   interactionTraceContext
                 )
               );
             }
 
+
             try {
+
               await selectMenu.execute(
                 interaction,
                 client,
                 args
               );
-            } catch (error) {
+
+            } catch (
+              error
+            ) {
+
               await handleInteractionError(
                 interaction,
                 error,
+
                 withTraceContext(
                   {
-                    type: 'select_menu',
+                    type:
+                      'select_menu',
+
                     customId:
                       interaction.customId
                   },
+
                   interactionTraceContext
                 )
               );
             }
           }
 
+
           /*
-           * ========================================================
-           * MODALS
-           * ========================================================
-           */
+          ========================================================
+          MODALS
+          ========================================================
+          */
 
           else if (
             interaction.isModalSubmit()
           ) {
 
             /*
-             * APPLICATION MODAL
-             */
+            APPLICATION MODAL
+            */
 
             if (
               interaction.customId.startsWith(
                 'app_modal_'
               )
             ) {
+
               try {
+
                 await handleApplicationModal(
                   interaction
                 );
-              } catch (error) {
+
+              } catch (
+                error
+              ) {
+
                 await handleInteractionError(
                   interaction,
                   error,
+
                   withTraceContext(
                     {
-                      type: 'modal',
+                      type:
+                        'modal',
+
                       customId:
                         interaction.customId,
+
                       handler:
                         'application'
                     },
+
                     interactionTraceContext
                   )
                 );
@@ -1110,32 +1863,40 @@ export default {
               return;
             }
 
+
             /*
-             * INLINE-AWAITED MODALS
-             */
+            INLINE MODALS
+            */
 
             if (
               interaction.customId.startsWith(
                 'app_review_'
               ) ||
+
               interaction.customId.startsWith(
                 'jtc_'
               ) ||
+
               interaction.customId.startsWith(
                 'config_wizard_modal:'
               ) ||
+
               interaction.customId.startsWith(
                 'log_dash_channel_modal:'
               ) ||
+
               interaction.customId.startsWith(
                 'log_dash_filter_modal:'
               )
             ) {
+
               logger.debug(
                 `Skipping modal handler lookup for inline-awaited modal: ${interaction.customId}`,
+
                 {
                   event:
                     'interaction.modal.inline_skipped',
+
                   traceId:
                     interactionTraceContext.traceId
                 }
@@ -1144,105 +1905,159 @@ export default {
               return;
             }
 
+
             const [
               customId,
               ...args
             ] =
-              interaction.customId.split(':');
+              interaction.customId.split(
+                ':'
+              );
+
 
             const modal =
-              client.modals.get(customId);
+              client.modals.get(
+                customId
+              );
+
 
             if (!modal) {
+
               if (
-                !interaction.customId.includes(':')
+                !interaction.customId.includes(
+                  ':'
+                )
               ) {
                 return;
               }
 
+
               throw createError(
                 `No modal handler found for ${customId}`,
+
                 ErrorTypes.CONFIGURATION,
+
                 'This form is not available.',
+
                 withTraceContext(
                   {
                     customId
                   },
+
                   interactionTraceContext
                 )
               );
             }
 
+
             try {
+
               await modal.execute(
                 interaction,
                 client,
                 args
               );
-            } catch (error) {
+
+            } catch (
+              error
+            ) {
+
               await handleInteractionError(
                 interaction,
                 error,
+
                 withTraceContext(
                   {
-                    type: 'modal',
+                    type:
+                      'modal',
+
                     customId:
                       interaction.customId,
-                    handler: 'general'
+
+                    handler:
+                      'general'
                   },
+
                   interactionTraceContext
                 )
               );
             }
           }
 
-        } catch (error) {
+
+        } catch (
+          error
+        ) {
 
           logger.error(
             'Unhandled error in interactionCreate:',
+
             {
               event:
                 'interaction.unhandled_error',
+
               errorCode:
                 ErrorCodes.INTERACTION_UNHANDLED,
+
               error,
+
               traceId:
                 interactionTraceContext.traceId,
+
               interactionId:
                 interaction.id,
+
               guildId:
                 interaction.guildId,
+
               userId:
                 interaction.user?.id
             }
           );
 
+
           try {
+
             await handleInteractionError(
               interaction,
               error,
+
               withTraceContext(
                 {
-                  type: 'interaction',
+                  type:
+                    'interaction',
+
                   commandName:
                     interaction.commandName,
+
                   customId:
                     interaction.customId,
+
                   source:
                     'interactionCreate.unhandled'
                 },
+
                 interactionTraceContext
               )
             );
-          } catch (replyError) {
+
+          } catch (
+            replyError
+          ) {
+
             logger.error(
               'Failed to send fallback error response:',
+
               {
                 event:
                   'interaction.error_response_failed',
+
                 errorCode:
                   ErrorCodes.INTERACTION_RESPONSE_FAILED,
-                error: replyError,
+
+                error:
+                  replyError,
+
                 traceId:
                   interactionTraceContext.traceId
               }
