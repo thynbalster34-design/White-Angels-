@@ -25,10 +25,6 @@ export default {
             PermissionFlagsBits.ManageGuild
         )
 
-        // ============================================================
-        // /verification setup
-        // ============================================================
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName('setup')
@@ -38,7 +34,7 @@ export default {
                     option
                         .setName('kanaal')
                         .setDescription(
-                            'Het tekstkanaal waar het verificatiebericht komt'
+                            'Het kanaal waarin het verificatiebericht komt'
                         )
                         .addChannelTypes(
                             ChannelType.GuildText
@@ -56,10 +52,6 @@ export default {
                 )
         )
 
-        // ============================================================
-        // /verification disable
-        // ============================================================
-
         .addSubcommand(subcommand =>
             subcommand
                 .setName('disable')
@@ -67,10 +59,6 @@ export default {
                     'Schakel het verificatiesysteem uit'
                 )
         ),
-
-    // ================================================================
-    // EXECUTE
-    // ================================================================
 
     async execute(interaction, config, client) {
         try {
@@ -87,17 +75,16 @@ export default {
             const subcommand =
                 interaction.options.getSubcommand();
 
-            // ========================================================
-            // SETUP
-            // ========================================================
+            /* ========================================================
+               SETUP
+               ======================================================== */
 
             if (subcommand === 'setup') {
 
                 /*
-                 * Gebruik GEEN true bij getChannel/getRole.
-                 * Zo voorkomt Discord.js de fout:
-                 *
-                 * Required option "kanaal" not found.
+                 * BELANGRIJK:
+                 * false voorkomt dat discord.js zelf een
+                 * "Required option not found" exception gooit.
                  */
 
                 const channel =
@@ -124,9 +111,9 @@ export default {
                     }
                 );
 
-                // ====================================================
-                // KANAAL
-                // ====================================================
+                /* ====================================================
+                   KANAAL
+                   ==================================================== */
 
                 if (!channel) {
                     return interaction.reply({
@@ -147,9 +134,9 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // ROL
-                // ====================================================
+                /* ====================================================
+                   ROL
+                   ==================================================== */
 
                 if (!role) {
                     return interaction.reply({
@@ -175,9 +162,9 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // BOT MEMBER
-                // ====================================================
+                /* ====================================================
+                   BOT MEMBER
+                   ==================================================== */
 
                 const botMember =
                     guild.members.me ||
@@ -193,9 +180,9 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // MANAGE ROLES
-                // ====================================================
+                /* ====================================================
+                   MANAGE ROLES
+                   ==================================================== */
 
                 if (
                     !botMember.permissions.has(
@@ -209,9 +196,9 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // ROLE HIERARCHY
-                // ====================================================
+                /* ====================================================
+                   ROLE HIERARCHY
+                   ==================================================== */
 
                 if (
                     role.position >=
@@ -228,9 +215,9 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // CHANNEL PERMISSIONS
-                // ====================================================
+                /* ====================================================
+                   CHANNEL PERMISSIONS
+                   ==================================================== */
 
                 const permissions =
                     channel.permissionsFor(
@@ -273,17 +260,17 @@ export default {
                     });
                 }
 
-                // ====================================================
-                // DEFER
-                // ====================================================
+                /* ====================================================
+                   DEFER
+                   ==================================================== */
 
                 await interaction.deferReply({
                     flags: MessageFlags.Ephemeral
                 });
 
-                // ====================================================
-                // CONFIG
-                // ====================================================
+                /* ====================================================
+                   CONFIG
+                   ==================================================== */
 
                 const guildConfig =
                     await getGuildConfig(
@@ -291,9 +278,9 @@ export default {
                         guild.id
                     );
 
-                // ====================================================
-                // OUDE VERIFICATIEBERICHT
-                // ====================================================
+                /* ====================================================
+                   OUDE VERIFICATIEBERICHT
+                   ==================================================== */
 
                 const oldChannelId =
                     guildConfig?.verification?.channelId;
@@ -337,9 +324,9 @@ export default {
                     }
                 }
 
-                // ====================================================
-                // EMBED
-                // ====================================================
+                /* ====================================================
+                   EMBED
+                   ==================================================== */
 
                 const embed =
                     new EmbedBuilder()
@@ -374,9 +361,9 @@ export default {
                         })
                         .setTimestamp();
 
-                // ====================================================
-                // BUTTON
-                // ====================================================
+                /* ====================================================
+                   BUTTON
+                   ==================================================== */
 
                 const button =
                     new ButtonBuilder()
@@ -386,9 +373,7 @@ export default {
                         .setLabel(
                             'Regels accepteren'
                         )
-                        .setEmoji(
-                            '✅'
-                        )
+                        .setEmoji('✅')
                         .setStyle(
                             ButtonStyle.Success
                         );
@@ -399,32 +384,31 @@ export default {
                             button
                         );
 
-                // ====================================================
-                // BERICHT STUREN
-                // ====================================================
+                /* ====================================================
+                   BERICHT STUREN
+                   ==================================================== */
 
                 const verificationMessage =
                     await channel.send({
-                        embeds: [embed],
-                        components: [row]
+                        embeds: [
+                            embed
+                        ],
+                        components: [
+                            row
+                        ]
                     });
 
-                // ====================================================
-                // CONFIG OPSLAAN
-                // ====================================================
+                /* ====================================================
+                   OPSLAAN
+                   ==================================================== */
 
                 const updatedConfig = {
                     ...(guildConfig || {}),
 
                     verification: {
                         enabled: true,
-
-                        channelId:
-                            channel.id,
-
-                        roleId:
-                            role.id,
-
+                        channelId: channel.id,
+                        roleId: role.id,
                         messageId:
                             verificationMessage.id,
 
@@ -440,30 +424,26 @@ export default {
                     updatedConfig
                 );
 
-                // ====================================================
-                // LOG
-                // ====================================================
+                /* ====================================================
+                   LOG
+                   ==================================================== */
 
                 logger.info(
                     '[Verification] Setup succesvol afgerond',
                     {
-                        guildId:
-                            guild.id,
-
-                        channelId:
-                            channel.id,
-
-                        roleId:
-                            role.id,
-
+                        guildId: guild.id,
+                        channelId: channel.id,
+                        channelName: channel.name,
+                        roleId: role.id,
+                        roleName: role.name,
                         messageId:
                             verificationMessage.id
                     }
                 );
 
-                // ====================================================
-                // SUCCES
-                // ====================================================
+                /* ====================================================
+                   SUCCES
+                   ==================================================== */
 
                 return interaction.editReply({
                     embeds: [
@@ -492,15 +472,14 @@ export default {
                 });
             }
 
-            // ========================================================
-            // DISABLE
-            // ========================================================
+            /* ========================================================
+               DISABLE
+               ======================================================== */
 
             if (subcommand === 'disable') {
 
                 await interaction.deferReply({
-                    flags:
-                        MessageFlags.Ephemeral
+                    flags: MessageFlags.Ephemeral
                 });
 
                 const guildConfig =
@@ -515,12 +494,10 @@ export default {
                     verification: {
                         ...(guildConfig?.verification || {}),
 
-                        enabled:
-                            false,
+                        enabled: false,
 
                         autoVerify: {
-                            enabled:
-                                false
+                            enabled: false
                         }
                     }
                 };
@@ -529,6 +506,10 @@ export default {
                     client,
                     guild.id,
                     updatedConfig
+                );
+
+                logger.info(
+                    `[Verification] Verificatie uitgeschakeld in ${guild.name} (${guild.id})`
                 );
 
                 return interaction.editReply({
@@ -546,13 +527,6 @@ export default {
                     ]
                 });
             }
-
-            return interaction.reply({
-                content:
-                    '❌ Onbekende verification actie.',
-                flags:
-                    MessageFlags.Ephemeral
-            });
 
         } catch (error) {
 
@@ -575,8 +549,8 @@ export default {
             );
 
             if (
-                interaction.replied ||
-                interaction.deferred
+                interaction.deferred ||
+                interaction.replied
             ) {
                 return interaction.editReply({
                     content:
@@ -587,8 +561,7 @@ export default {
             return interaction.reply({
                 content:
                     `❌ Er is een fout opgetreden bij het instellen van verificatie.\n\n\`${error?.message || 'Onbekende fout'}\``,
-                flags:
-                    MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral
             }).catch(() => {});
         }
     }
