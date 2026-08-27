@@ -34,7 +34,7 @@ export default {
                     option
                         .setName('kanaal')
                         .setDescription(
-                            'Het kanaal waarin het verificatiebericht komt'
+                            'Het tekstkanaal voor het verificatiebericht'
                         )
                         .addChannelTypes(
                             ChannelType.GuildText
@@ -83,8 +83,7 @@ export default {
 
                 /*
                  * BELANGRIJK:
-                 * false voorkomt dat discord.js zelf een
-                 * "Required option not found" exception gooit.
+                 * Geen "true" gebruiken bij getChannel/getRole.
                  */
 
                 const channel =
@@ -181,7 +180,7 @@ export default {
                 }
 
                 /* ====================================================
-                   MANAGE ROLES
+                   BOT PERMISSION
                    ==================================================== */
 
                 if (
@@ -279,7 +278,7 @@ export default {
                     );
 
                 /* ====================================================
-                   OUDE VERIFICATIEBERICHT
+                   OUDE VERIFICATIE
                    ==================================================== */
 
                 const oldChannelId =
@@ -380,12 +379,10 @@ export default {
 
                 const row =
                     new ActionRowBuilder()
-                        .addComponents(
-                            button
-                        );
+                        .addComponents(button);
 
                 /* ====================================================
-                   BERICHT STUREN
+                   MESSAGE
                    ==================================================== */
 
                 const verificationMessage =
@@ -399,7 +396,7 @@ export default {
                     });
 
                 /* ====================================================
-                   OPSLAAN
+                   CONFIG OPSLAAN
                    ==================================================== */
 
                 const updatedConfig = {
@@ -407,8 +404,10 @@ export default {
 
                     verification: {
                         enabled: true,
-                        channelId: channel.id,
-                        roleId: role.id,
+                        channelId:
+                            channel.id,
+                        roleId:
+                            role.id,
                         messageId:
                             verificationMessage.id,
 
@@ -431,11 +430,16 @@ export default {
                 logger.info(
                     '[Verification] Setup succesvol afgerond',
                     {
-                        guildId: guild.id,
-                        channelId: channel.id,
-                        channelName: channel.name,
-                        roleId: role.id,
-                        roleName: role.name,
+                        guildId:
+                            guild.id,
+                        channelId:
+                            channel.id,
+                        channelName:
+                            channel.name,
+                        roleId:
+                            role.id,
+                        roleName:
+                            role.name,
                         messageId:
                             verificationMessage.id
                     }
@@ -470,6 +474,7 @@ export default {
                             )
                     ]
                 });
+
             }
 
             /* ========================================================
@@ -479,7 +484,8 @@ export default {
             if (subcommand === 'disable') {
 
                 await interaction.deferReply({
-                    flags: MessageFlags.Ephemeral
+                    flags:
+                        MessageFlags.Ephemeral
                 });
 
                 const guildConfig =
@@ -494,10 +500,12 @@ export default {
                     verification: {
                         ...(guildConfig?.verification || {}),
 
-                        enabled: false,
+                        enabled:
+                            false,
 
                         autoVerify: {
-                            enabled: false
+                            enabled:
+                                false
                         }
                     }
                 };
@@ -509,7 +517,7 @@ export default {
                 );
 
                 logger.info(
-                    `[Verification] Verificatie uitgeschakeld in ${guild.name} (${guild.id})`
+                    `[Verification] Uitgeschakeld in ${guild.name} (${guild.id})`
                 );
 
                 return interaction.editReply({
@@ -531,7 +539,7 @@ export default {
         } catch (error) {
 
             logger.error(
-                '[Verification] Onverwachte fout:',
+                '[Verification] Fout:',
                 {
                     message:
                         error?.message ||
@@ -561,7 +569,8 @@ export default {
             return interaction.reply({
                 content:
                     `❌ Er is een fout opgetreden bij het instellen van verificatie.\n\n\`${error?.message || 'Onbekende fout'}\``,
-                flags: MessageFlags.Ephemeral
+                flags:
+                    MessageFlags.Ephemeral
             }).catch(() => {});
         }
     }
