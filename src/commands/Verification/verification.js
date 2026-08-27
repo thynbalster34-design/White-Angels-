@@ -28,20 +28,26 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('setup')
-                .setDescription('Stel het verificatiesysteem in')
-
+                .setDescription(
+                    'Stel het verificatiesysteem in'
+                )
                 .addChannelOption(option =>
                     option
                         .setName('kanaal')
-                        .setDescription('Het tekstkanaal voor verificatie')
-                        .addChannelTypes(ChannelType.GuildText)
+                        .setDescription(
+                            'Het tekstkanaal waar het verificatiebericht komt'
+                        )
+                        .addChannelTypes(
+                            ChannelType.GuildText
+                        )
                         .setRequired(true)
                 )
-
                 .addRoleOption(option =>
                     option
                         .setName('rol')
-                        .setDescription('De rol die leden krijgen na verificatie')
+                        .setDescription(
+                            'De rol die leden krijgen na verificatie'
+                        )
                         .setRequired(true)
                 )
         )
@@ -49,7 +55,9 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('disable')
-                .setDescription('Schakel het verificatiesysteem uit')
+                .setDescription(
+                    'Schakel het verificatiesysteem uit'
+                )
         ),
 
     async execute(interaction, config, client) {
@@ -64,21 +72,14 @@ export default {
                 });
             }
 
-            const subcommand = interaction.options.getSubcommand();
+            const subcommand =
+                interaction.options.getSubcommand();
 
             /* ========================================================
                SETUP
                ======================================================== */
 
             if (subcommand === 'setup') {
-
-                /*
-                 * BELANGRIJK:
-                 *
-                 * We gebruiken getChannel/getRole zonder "required=true".
-                 * Daardoor krijgen we geen "Required option not found"
-                 * exception.
-                 */
 
                 const channel =
                     interaction.options.getChannel(
@@ -98,10 +99,9 @@ export default {
                         guildId: guild.id,
                         channelId: channel?.id ?? null,
                         channelName: channel?.name ?? null,
-                        channelType: channel?.type ?? null,
                         roleId: role?.id ?? null,
                         roleName: role?.name ?? null,
-                        rawOptions: interaction.options.data
+                        options: interaction.options.data
                     }
                 );
 
@@ -111,18 +111,16 @@ export default {
 
                 if (!channel) {
                     return interaction.reply({
-                        content: [
-                            '❌ Discord heeft geen kanaal ontvangen.',
-                            '',
-                            'De slash command die Discord gebruikt bevat blijkbaar geen `kanaal`-optie.',
-                            '',
-                            'Verwijder Discord de oude `/verification` command en laat Railway daarna opnieuw deployen.'
-                        ].join('\n'),
+                        content:
+                            '❌ Geen geldig kanaal geselecteerd. Selecteer bij **kanaal** een tekstkanaal.',
                         flags: MessageFlags.Ephemeral
                     });
                 }
 
-                if (channel.type !== ChannelType.GuildText) {
+                if (
+                    channel.type !==
+                    ChannelType.GuildText
+                ) {
                     return interaction.reply({
                         content:
                             '❌ Selecteer een normaal tekstkanaal.',
@@ -137,7 +135,7 @@ export default {
                 if (!role) {
                     return interaction.reply({
                         content:
-                            '❌ Discord heeft geen rol ontvangen.',
+                            '❌ Geen geldige rol geselecteerd.',
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -153,7 +151,7 @@ export default {
                 if (role.managed) {
                     return interaction.reply({
                         content:
-                            '❌ Deze rol wordt door een integratie beheerd en kan niet worden gebruikt.',
+                            '❌ Deze rol wordt beheerd door een integratie en kan niet worden gebruikt.',
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -216,7 +214,9 @@ export default {
                    ==================================================== */
 
                 const permissions =
-                    channel.permissionsFor(botMember);
+                    channel.permissionsFor(
+                        botMember
+                    );
 
                 if (
                     !permissions?.has(
@@ -272,15 +272,15 @@ export default {
                         guild.id
                     );
 
+                /* ====================================================
+                   OUDE MESSAGE
+                   ==================================================== */
+
                 const oldChannelId =
                     guildConfig?.verification?.channelId;
 
                 const oldMessageId =
                     guildConfig?.verification?.messageId;
-
-                /* ====================================================
-                   OUD BERICHT VERWIJDEREN
-                   ==================================================== */
 
                 if (
                     oldChannelId &&
@@ -292,7 +292,9 @@ export default {
                                 .fetch(oldChannelId)
                                 .catch(() => null);
 
-                        if (oldChannel?.isTextBased()) {
+                        if (
+                            oldChannel?.isTextBased()
+                        ) {
                             const oldMessage =
                                 await oldChannel.messages
                                     .fetch(oldMessageId)
@@ -302,15 +304,11 @@ export default {
                                 await oldMessage
                                     .delete()
                                     .catch(() => {});
-
-                                logger.info(
-                                    '[Verification] Oud verificatiebericht verwijderd.'
-                                );
                             }
                         }
                     } catch (error) {
                         logger.warn(
-                            '[Verification] Oud verificatiebericht kon niet verwijderd worden:',
+                            '[Verification] Oud bericht kon niet worden verwijderd:',
                             error
                         );
                     }
@@ -365,29 +363,33 @@ export default {
                         .setLabel(
                             'Regels accepteren'
                         )
-                        .setEmoji(
-                            '✅'
-                        )
+                        .setEmoji('✅')
                         .setStyle(
                             ButtonStyle.Success
                         );
 
                 const row =
                     new ActionRowBuilder()
-                        .addComponents(button);
+                        .addComponents(
+                            button
+                        );
 
                 /* ====================================================
-                   BERICHT STUREN
+                   MESSAGE
                    ==================================================== */
 
                 const verificationMessage =
                     await channel.send({
-                        embeds: [embed],
-                        components: [row]
+                        embeds: [
+                            embed
+                        ],
+                        components: [
+                            row
+                        ]
                     });
 
                 /* ====================================================
-                   CONFIG OPSLAAN
+                   SAVE
                    ==================================================== */
 
                 const updatedConfig = {
@@ -397,7 +399,8 @@ export default {
                         enabled: true,
                         channelId: channel.id,
                         roleId: role.id,
-                        messageId: verificationMessage.id,
+                        messageId:
+                            verificationMessage.id,
 
                         autoVerify: {
                             enabled: false
@@ -411,17 +414,14 @@ export default {
                     updatedConfig
                 );
 
-                /* ====================================================
-                   SUCCES
-                   ==================================================== */
-
                 logger.info(
-                    '[Verification] Setup succesvol afgerond',
+                    '[Verification] Setup succesvol',
                     {
                         guildId: guild.id,
                         channelId: channel.id,
                         roleId: role.id,
-                        messageId: verificationMessage.id
+                        messageId:
+                            verificationMessage.id
                     }
                 );
 
@@ -457,7 +457,8 @@ export default {
             if (subcommand === 'disable') {
 
                 await interaction.deferReply({
-                    flags: MessageFlags.Ephemeral
+                    flags:
+                        MessageFlags.Ephemeral
                 });
 
                 const guildConfig =
@@ -471,7 +472,6 @@ export default {
 
                     verification: {
                         ...(guildConfig?.verification || {}),
-
                         enabled: false,
 
                         autoVerify: {
@@ -514,10 +514,7 @@ export default {
                         error?.stack,
 
                     guildId:
-                        interaction.guildId,
-
-                    userId:
-                        interaction.user?.id
+                        interaction.guildId
                 }
             );
 
@@ -534,7 +531,8 @@ export default {
             return interaction.reply({
                 content:
                     `❌ Er is een fout opgetreden bij het instellen van verificatie.\n\n\`${error?.message || 'Onbekende fout'}\``,
-                flags: MessageFlags.Ephemeral
+                flags:
+                    MessageFlags.Ephemeral
             }).catch(() => {});
         }
     }
