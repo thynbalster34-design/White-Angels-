@@ -24,6 +24,10 @@ import {
   startSavedMemberListUpdater,
 } from "../commands/Core/ledenlijst.js";
 
+import {
+  registerCommands,
+} from "../services/commandLoader.js";
+
 /* ============================================================
    CLIENT READY
    ============================================================ */
@@ -55,6 +59,61 @@ export default {
       );
 
       /* ========================================================
+         SLASH COMMAND REGISTRATION
+         ======================================================== */
+
+      try {
+        const clientId =
+          client.user.id;
+
+        /*
+         * Probeer eerst de guild ID uit de application config
+         * te halen. Verschillende configuraties kunnen hiervoor
+         * verschillende namen gebruiken.
+         */
+
+        const guildId =
+          config.guildId ||
+          config.discord?.guildId ||
+          config.discord?.serverId ||
+          process.env.GUILD_ID ||
+          process.env.DISCORD_GUILD_ID ||
+          null;
+
+        startupLog(
+          `Registering ${client.commands.size} slash commands...`
+        );
+
+        if (guildId) {
+          startupLog(
+            `Using guild command registration for guild ${guildId}`
+          );
+        } else {
+          startupLog(
+            "No GUILD_ID configured - using global command registration"
+          );
+        }
+
+        await registerCommands(
+          client,
+          {
+            clientId,
+            guildId,
+          }
+        );
+
+        startupLog(
+          `✅ Slash commands registered successfully (${client.commands.size} commands)`
+        );
+
+      } catch (error) {
+        logger.error(
+          "❌ Failed to register slash commands:",
+          error
+        );
+      }
+
+      /* ========================================================
          WHITE ANGELS LEDENLIJST AUTO-UPDATER
          ======================================================== */
 
@@ -80,75 +139,117 @@ export default {
       if (
         client.config?.features?.music
       ) {
-        initRiffyAfterReady(
-          client
-        );
+        try {
+          initRiffyAfterReady(
+            client
+          );
+        } catch (error) {
+          logger.warn(
+            "Could not initialize music system:",
+            error
+          );
+        }
       }
 
       /* ========================================================
          REACTION ROLES
          ======================================================== */
 
-      const reconciliationSummary =
-        await reconcileReactionRoleMessages(
-          client
-        );
+      try {
+        const reconciliationSummary =
+          await reconcileReactionRoleMessages(
+            client
+          );
 
-      startupLog(
-        `Reaction role reconciliation: scanned ${reconciliationSummary.scannedMessages}, removed ${reconciliationSummary.removedMessages}, errors ${reconciliationSummary.errors}`
-      );
+        startupLog(
+          `Reaction role reconciliation: scanned ${reconciliationSummary.scannedMessages}, removed ${reconciliationSummary.removedMessages}, errors ${reconciliationSummary.errors}`
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not reconcile reaction role messages:",
+          error
+        );
+      }
 
       /* ========================================================
          TICKET PANEL HEALTH
          ======================================================== */
 
-      const ticketPanelSummary =
-        await reconcileTicketPanels(
-          client
-        );
+      try {
+        const ticketPanelSummary =
+          await reconcileTicketPanels(
+            client
+          );
 
-      startupLog(
-        `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
-      );
+        startupLog(
+          `Ticket panel health: scanned ${ticketPanelSummary.scannedGuilds} guilds, healthy ${ticketPanelSummary.healthyPanels}, deleted ${ticketPanelSummary.deletedPanels}, missing channel ${ticketPanelSummary.missingChannels}, recovered ${ticketPanelSummary.recoveredIds}, errors ${ticketPanelSummary.errors}`
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not reconcile ticket panels:",
+          error
+        );
+      }
 
       /* ========================================================
          VERIFICATION PANEL
          ======================================================== */
 
-      const verificationPanelSummary =
-        await reconcileVerificationPanels(
-          client
-        );
+      try {
+        const verificationPanelSummary =
+          await reconcileVerificationPanels(
+            client
+          );
 
-      startupLog(
-        `Verification panel health: scanned ${verificationPanelSummary.scannedGuilds} guilds, healthy ${verificationPanelSummary.healthyPanels}, deleted ${verificationPanelSummary.deletedPanels}, missing channel ${verificationPanelSummary.missingChannels}, recovered ${verificationPanelSummary.recoveredIds}, errors ${verificationPanelSummary.errors}`
-      );
+        startupLog(
+          `Verification panel health: scanned ${verificationPanelSummary.scannedGuilds} guilds, healthy ${verificationPanelSummary.healthyPanels}, deleted ${verificationPanelSummary.deletedPanels}, missing channel ${verificationPanelSummary.missingChannels}, recovered ${verificationPanelSummary.recoveredIds}, errors ${verificationPanelSummary.errors}`
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not reconcile verification panels:",
+          error
+        );
+      }
 
       /* ========================================================
          REACTION ROLE PANEL HEALTH
          ======================================================== */
 
-      const reactionRolePanelSummary =
-        await reconcileReactionRolePanelHealth(
-          client
-        );
+      try {
+        const reactionRolePanelSummary =
+          await reconcileReactionRolePanelHealth(
+            client
+          );
 
-      startupLog(
-        `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
-      );
+        startupLog(
+          `Reaction role panel health: scanned ${reactionRolePanelSummary.scannedPanels} panels, healthy ${reactionRolePanelSummary.healthyPanels}, deleted ${reactionRolePanelSummary.deletedPanels}, missing channel ${reactionRolePanelSummary.missingChannels}, recovered ${reactionRolePanelSummary.recoveredIds}, errors ${reactionRolePanelSummary.errors}`
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not reconcile reaction role panel health:",
+          error
+        );
+      }
 
       /* ========================================================
          LEVEL ROLES
          ======================================================== */
 
-      const levelRoleSummary =
-        await reconcileLevelRoles(
-          client
-        );
+      try {
+        const levelRoleSummary =
+          await reconcileLevelRoles(
+            client
+          );
 
-      startupLog(
-        `Level role sync: scanned ${levelRoleSummary.scannedGuilds} guilds, pruned ${levelRoleSummary.prunedRewardEntries} stale rewards, re-awarded ${levelRoleSummary.rolesReAwarded} roles, errors ${levelRoleSummary.errors}`
-      );
+        startupLog(
+          `Level role sync: scanned ${levelRoleSummary.scannedGuilds} guilds, pruned ${levelRoleSummary.prunedRewardEntries} stale rewards, re-awarded ${levelRoleSummary.rolesReAwarded} roles, errors ${levelRoleSummary.errors}`
+        );
+      } catch (error) {
+        logger.warn(
+          "Could not reconcile level roles:",
+          error
+        );
+      }
 
       /* ========================================================
          KLAAR
