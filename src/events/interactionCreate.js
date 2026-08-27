@@ -1,17 +1,23 @@
 import { Events, MessageFlags } from 'discord.js';
+
 import { logger } from '../utils/logger.js';
-import { getGuildConfig } from '../services/config/guildConfig.js';
+
+import {
+  getGuildConfig
+} from '../services/config/guildConfig.js';
 
 import {
   getBotMessage,
   isBotOwner,
   isCommandCategoryEnabled,
-  isMaintenanceMode,
+  isMaintenanceMode
 } from '../config/bot.js';
 
 import botConfig from '../config/bot.js';
 
-import { handleApplicationModal } from '../commands/Community/apply.js';
+import {
+  handleApplicationModal
+} from '../commands/Community/apply.js';
 
 import {
   handleInteractionError,
@@ -20,7 +26,9 @@ import {
   ErrorCodes
 } from '../utils/errorHandler.js';
 
-import { InteractionHelper } from '../utils/interactionHelper.js';
+import {
+  InteractionHelper
+} from '../utils/interactionHelper.js';
 
 import {
   createInteractionTraceContext,
@@ -36,20 +44,30 @@ import {
   formatCooldownDuration
 } from '../utils/abuseProtection.js';
 
-import { isCommandEnabled } from '../services/commandAccessService.js';
+import {
+  isCommandEnabled
+} from '../services/commandAccessService.js';
 
-import { resolveSlashAccessKey } from '../utils/messageAdapter.js';
+import {
+  resolveSlashAccessKey
+} from '../utils/messageAdapter.js';
 
 import {
   isCollectorManagedComponent
 } from '../utils/collectorComponents.js';
 
-import { ResponseCoordinator } from '../utils/responseCoordinator.js';
+import {
+  ResponseCoordinator
+} from '../utils/responseCoordinator.js';
 
 import {
   enforceDefaultCommandPermissions
 } from '../utils/permissionGuard.js';
 
+
+/* ============================================================
+   COMMAND ERROR SUBTYPES
+   ============================================================ */
 
 const COMMAND_ERROR_SUBTYPES = {
   warn: 'warn_failed',
@@ -64,44 +82,24 @@ const COMMAND_ERROR_SUBTYPES = {
   gcreate: 'giveaway_failed',
   gend: 'giveaway_failed',
   gdelete: 'giveaway_failed',
-  greroll: 'giveaway_failed',
+  greroll: 'giveaway_failed'
 };
 
 
-/*
-============================================================
-VERIFICATION ROLE
-============================================================
-
-Vaste verificatierol die gegeven wordt wanneer iemand
-op de verificatieknop klikt.
-
-============================================================
-*/
+/* ============================================================
+   VERIFICATION
+   ============================================================ */
 
 const VERIFICATION_ROLE_ID =
   '1437696432340467779';
-
-
-/*
-============================================================
-VERIFICATION BUTTON
-============================================================
-*/
 
 const VERIFICATION_BUTTON_ID =
   'verification_accept';
 
 
-/*
-============================================================
-SAINTS ROLE BUTTON
-============================================================
-
-Bestaande role button blijft gewoon werken.
-
-============================================================
-*/
+/* ============================================================
+   BESTAANDE SAINTS BUTTON
+   ============================================================ */
 
 const SAINTS_ROLE_ID =
   '1437696432340467779';
@@ -109,6 +107,10 @@ const SAINTS_ROLE_ID =
 const SAINTS_ROLE_BUTTON_ID =
   'saints_role';
 
+
+/* ============================================================
+   TRACE CONTEXT
+   ============================================================ */
 
 function withTraceContext(
   context = {},
@@ -135,10 +137,12 @@ function withTraceContext(
 }
 
 
-export default {
-  name:
-    Events.InteractionCreate,
+/* ============================================================
+   EVENT
+   ============================================================ */
 
+export default {
+  name: Events.InteractionCreate,
 
   async execute(
     interaction,
@@ -173,15 +177,132 @@ export default {
           );
 
 
-          /*
-          ========================================================
-          SLASH COMMANDS
-          ========================================================
-          */
+          /* ======================================================
+             SLASH COMMANDS
+             ====================================================== */
 
           if (
             interaction.isChatInputCommand()
           ) {
+
+            /* ====================================================
+               VERIFICATION SPECIAL ROUTE
+               ====================================================
+
+               Verification wordt hier direct uitgevoerd.
+
+               Hierdoor wordt het niet tegengehouden door:
+               - command payload validation
+               - guild command access
+               - cooldown
+               - abuse protection
+               - overige algemene command checks
+
+               ==================================================== */
+
+            if (
+              interaction.commandName ===
+              'verification'
+            ) {
+
+              logger.info(
+                '[Verification] Interaction received',
+                {
+                  userId:
+                    interaction.user?.id,
+
+                  userTag:
+                    interaction.user?.tag,
+
+                  guildId:
+                    interaction.guildId,
+
+                  options:
+                    interaction.options?.data
+                }
+              );
+
+
+              try {
+
+                const verificationCommand =
+                  client.commands.get(
+                    'verification'
+                  );
+
+
+                if (!verificationCommand) {
+
+                  logger.error(
+                    '[Verification] Command not found in client.commands'
+                  );
+
+                  return await interaction.reply({
+                    content:
+                      '❌ Het verification commando is niet geladen.',
+                    flags:
+                      MessageFlags.Ephemeral
+                  });
+                }
+
+
+                /*
+                 * Direct uitvoeren.
+                 */
+
+                return await verificationCommand.execute(
+                  interaction,
+                  null,
+                  client
+                );
+
+              } catch (
+                error
+              ) {
+
+                logger.error(
+                  '[Verification] Command execution error',
+                  {
+                    error:
+                      error?.message ||
+                      error,
+
+                    stack:
+                      error?.stack,
+
+                    guildId:
+                      interaction.guildId,
+
+                    userId:
+                      interaction.user?.id
+                  }
+                );
+
+
+                if (
+                  !interaction.replied &&
+                  !interaction.deferred
+                ) {
+
+                  return await interaction.reply({
+                    content:
+                      `❌ Er ging iets mis met verificatie.\n\n\`${error?.message || 'Onbekende fout'}\``,
+                    flags:
+                      MessageFlags.Ephemeral
+                  }).catch(
+                    () => {}
+                  );
+                }
+
+
+                return;
+              }
+            }
+
+
+            /* ====================================================
+               NORMALE COMMAND ROUTE
+               ==================================================== */
 
             try {
 
@@ -206,52 +327,22 @@ export default {
               );
 
 
-              /*
-              ======================================================
-              BELANGRIJKE AANPASSING
-              ======================================================
+              validateChatInputPayloadOrThrow(
+                interaction,
 
-              De algemene command payload validator veroorzaakte
-              de fout:
+                withTraceContext(
+                  {
+                    type:
+                      'command_input_validation',
 
-              Required option "kanaal" not found.
+                    commandName:
+                      interaction.commandName
+                  },
 
-              Daarom laten we verification hier niet doorheen gaan.
+                  interactionTraceContext
+                )
+              );
 
-              Alle andere commands blijven exact dezelfde validator
-              gebruiken.
-
-              ======================================================
-              */
-
-              if (
-                interaction.commandName !==
-                'verification'
-              ) {
-
-                validateChatInputPayloadOrThrow(
-                  interaction,
-
-                  withTraceContext(
-                    {
-                      type:
-                        'command_input_validation',
-
-                      commandName:
-                        interaction.commandName
-                    },
-
-                    interactionTraceContext
-                  )
-                );
-              }
-
-
-              /*
-              ======================================================
-              COMMAND OPHALEN
-              ======================================================
-              */
 
               const command =
                 client.commands.get(
@@ -280,11 +371,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              MAINTENANCE
-              ======================================================
-              */
+              /* ==================================================
+                 MAINTENANCE
+                 ================================================== */
 
               if (
                 isMaintenanceMode() &&
@@ -314,11 +403,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              CATEGORY CHECK
-              ======================================================
-              */
+              /* ==================================================
+                 CATEGORY
+                 ================================================== */
 
               if (
                 !isCommandCategoryEnabled(
@@ -350,11 +437,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              DEFAULT COOLDOWN
-              ======================================================
-              */
+              /* ==================================================
+                 DEFAULT COOLDOWN
+                 ================================================== */
 
               const defaultCooldownSec =
                 Number(
@@ -371,6 +456,7 @@ export default {
 
                 const cooldownKey =
                   `${interaction.user.id}:${interaction.commandName}`;
+
 
                 const expiresAt =
                   client.cooldowns.get(
@@ -430,11 +516,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              ABUSE PROTECTION
-              ======================================================
-              */
+              /* ==================================================
+                 ABUSE PROTECTION
+                 ================================================== */
 
               const abuseProtection =
                 await enforceAbuseProtection(
@@ -488,11 +572,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              GUILD CONFIG
-              ======================================================
-              */
+              /* ==================================================
+                 GUILD CONFIG
+                 ================================================== */
 
               let guildConfig =
                 null;
@@ -550,11 +632,9 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              DEFAULT PERMISSIONS
-              ======================================================
-              */
+              /* ==================================================
+                 PERMISSIONS
+                 ================================================== */
 
               const permissionAllowed =
                 await enforceDefaultCommandPermissions(
@@ -576,18 +656,15 @@ export default {
               }
 
 
-              /*
-              ======================================================
-              COMMAND UITVOEREN
-              ======================================================
-              */
+              /* ==================================================
+                 EXECUTE
+                 ================================================== */
 
               await command.execute(
                 interaction,
                 guildConfig,
                 client
               );
-
 
             } catch (
               error
@@ -619,11 +696,9 @@ export default {
           }
 
 
-          /*
-          ========================================================
-          AUTOCOMPLETE
-          ========================================================
-          */
+          /* ======================================================
+             AUTOCOMPLETE
+             ====================================================== */
 
           else if (
             interaction.isAutocomplete()
@@ -652,7 +727,6 @@ export default {
 
                 logger.error(
                   'Error handling command autocomplete:',
-
                   {
                     error:
                       error.message,
@@ -757,7 +831,6 @@ export default {
 
                 logger.error(
                   'Error handling autocomplete:',
-
                   {
                     error:
                       error.message,
@@ -780,7 +853,7 @@ export default {
 
             /*
             ======================================================
-            APP ADMIN
+            APP-ADMIN
             ======================================================
             */
 
@@ -851,7 +924,6 @@ export default {
 
                 logger.error(
                   'Error handling app-admin autocomplete:',
-
                   {
                     error:
                       error.message,
@@ -1042,9 +1114,7 @@ export default {
 
 
                             const title =
-                              msg
-                                ?.embeds?.[0]
-                                ?.title ??
+                              msg?.embeds?.[0]?.title ??
                               'Untitled Panel';
 
 
@@ -1054,7 +1124,6 @@ export default {
 
 
                             return {
-
                               name:
                                 `${title} (${channelName})`
                                   .substring(
@@ -1067,6 +1136,7 @@ export default {
                             };
 
                           } catch {
+
                             return null;
                           }
                         }
@@ -1087,7 +1157,6 @@ export default {
 
                 logger.error(
                   'Error handling reactroles autocomplete:',
-
                   {
                     error:
                       error.message,
@@ -1109,21 +1178,17 @@ export default {
           }
 
 
-          /*
-          ========================================================
-          BUTTONS
-          ========================================================
-          */
+          /* ======================================================
+             BUTTONS
+             ====================================================== */
 
           else if (
             interaction.isButton()
           ) {
 
-            /*
-            ======================================================
-            VERIFICATION BUTTON
-            ======================================================
-            */
+            /* ====================================================
+               VERIFICATION BUTTON
+               ==================================================== */
 
             if (
               interaction.customId ===
@@ -1145,11 +1210,6 @@ export default {
                   });
                 }
 
-
-                /*
-                * Eerst antwoorden zodat Discord de interaction
-                * niet als "niet gereageerd" ziet.
-                */
 
                 await interaction.deferReply({
                   flags:
@@ -1221,10 +1281,6 @@ export default {
                 }
 
 
-                /*
-                * Al geverifieerd
-                */
-
                 if (
                   member.roles.cache.has(
                     VERIFICATION_ROLE_ID
@@ -1237,10 +1293,6 @@ export default {
                   });
                 }
 
-
-                /*
-                * Rol geven
-                */
 
                 await member.roles.add(
                   role,
@@ -1328,11 +1380,9 @@ export default {
             }
 
 
-            /*
-            ======================================================
-            BESTAANDE SAINTS ROLE BUTTON
-            ======================================================
-            */
+            /* ====================================================
+               SAINTS ROLE BUTTON
+               ==================================================== */
 
             if (
               interaction.customId ===
@@ -1443,27 +1493,6 @@ export default {
                 );
 
 
-                logger.info(
-                  `Role ${role.name} (${role.id}) given to ${interaction.user.tag} (${interaction.user.id})`,
-                  {
-                    event:
-                      'role_button.role_added',
-
-                    traceId:
-                      interactionTraceContext.traceId,
-
-                    guildId:
-                      interaction.guild.id,
-
-                    userId:
-                      interaction.user.id,
-
-                    roleId:
-                      role.id
-                  }
-                );
-
-
                 await interaction.reply({
                   content:
                     `✅ Je hebt de rol **${role.name}** gekregen!`,
@@ -1478,23 +1507,7 @@ export default {
 
                 logger.error(
                   'Error while giving Saints role:',
-                  {
-                    error:
-                      error?.message ||
-                      error,
-
-                    stack:
-                      error?.stack,
-
-                    guildId:
-                      interaction.guildId,
-
-                    userId:
-                      interaction.user?.id,
-
-                    roleId:
-                      SAINTS_ROLE_ID
-                  }
+                  error
                 );
 
 
@@ -1535,11 +1548,9 @@ export default {
             }
 
 
-            /*
-            ======================================================
-            SHARED TODO
-            ======================================================
-            */
+            /* ====================================================
+               SHARED TODO
+               ==================================================== */
 
             if (
               interaction.customId.startsWith(
@@ -1630,11 +1641,9 @@ export default {
             }
 
 
-            /*
-            ======================================================
-            NORMALE BUTTON HANDLERS
-            ======================================================
-            */
+            /* ====================================================
+               NORMALE BUTTON HANDLERS
+               ==================================================== */
 
             const [
               customId,
@@ -1716,14 +1725,14 @@ export default {
                 )
               );
             }
+
+            return;
           }
 
 
-          /*
-          ========================================================
-          STRING SELECT MENUS
-          ========================================================
-          */
+          /* ======================================================
+             STRING SELECT MENUS
+             ====================================================== */
 
           else if (
             interaction.isStringSelectMenu()
@@ -1750,7 +1759,6 @@ export default {
                 !interaction.customId.includes(
                   ':'
                 ) ||
-
                 isCollectorManagedComponent(
                   customId
                 )
@@ -1806,22 +1814,18 @@ export default {
                 )
               );
             }
+
+            return;
           }
 
 
-          /*
-          ========================================================
-          MODALS
-          ========================================================
-          */
+          /* ======================================================
+             MODALS
+             ====================================================== */
 
           else if (
             interaction.isModalSubmit()
           ) {
-
-            /*
-            APPLICATION MODAL
-            */
 
             if (
               interaction.customId.startsWith(
@@ -1863,10 +1867,6 @@ export default {
               return;
             }
 
-
-            /*
-            INLINE MODALS
-            */
 
             if (
               interaction.customId.startsWith(
@@ -1982,8 +1982,9 @@ export default {
                 )
               );
             }
-          }
 
+            return;
+          }
 
         } catch (
           error
