@@ -1,314 +1,1259 @@
+import 'dotenv/config';
+
+console.log('[APP] app.js wordt gestart...');
+
 import {
-    SlashCommandBuilder,
-    PermissionFlagsBits,
-    ChannelType,
-    EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
+  Client,
+  Collection,
+  GatewayIntentBits,
 } from 'discord.js';
 
-const VERIFICATION_ROLE_ID =
-    '1437696432340467779';
+import { REST } from '@discordjs/rest';
+import express from 'express';
+import cron from 'node-cron';
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName('verification')
-        .setDescription('Beheer het verificatiesysteem')
+import config from './config/application.js';
 
-        .setDefaultMemberPermissions(
-            PermissionFlagsBits.Administrator
-        )
+import {
+  initializeDatabase,
+} from './utils/database.js';
 
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('setup')
-                .setDescription(
-                    'Maak het verificatiepaneel aan'
-                )
+import {
+  getServerCounters,
+  saveServerCounters,
+  updateCounter,
+} from './services/serverstatsService.js';
 
-                .addChannelOption(option =>
-                    option
-                        .setName('kanaal')
-                        .setDescription(
-                            'Het tekstkanaal waarin het verificatiepaneel moet komen'
-                        )
-                        .addChannelTypes(
-                            ChannelType.GuildText
-                        )
-                        .setRequired(true)
-                )
+import {
+  logger,
+  startupLog,
+  shutdownLog,
+} from './utils/logger.js';
 
-                .addRoleOption(option =>
-                    option
-                        .setName('rol')
-                        .setDescription(
-                            'De rol die leden krijgen na verificatie'
-                        )
-                        .setRequired(true)
-                )
-        ),
+import {
+  checkBirthdays,
+} from './services/birthdayService.js';
 
-    async execute(interaction) {
-        try {
-            /*
-             * =====================================================
-             * SETUP
-             * =====================================================
-             */
+import {
+  checkGiveaways,
+} from './services/giveawayService.js';
+
+import {
+  loadCommands,
+  registerCommands as registerSlashCommands,
+} from './handlers/loaders/commandLoader.js';
+
+import {
+  runSafeTask,
+  handleTaskError,
+  ErrorCodes,
+} from './utils/errorHandler.js';
+
+import {
+  initializeMusic,
+} from './services/music/riffySetup.js';
+
+import {
+  shutdownMusic,
+} from './services/music/playerHandler.js';
+
+import pkg from '../package.json' with {
+  type: 'json'
+};
+
+import {
+  EXPECTED_SCHEMA_VERSION,
+  EXPECTED_SCHEMA_LABEL,
+} from './config/database/schemaVersion.js';
+
+/* ============================================================
+   CONSTANTS
+   ============================================================ */
+
+const CLIENT_ID =
+  '1541553509575426112';
+
+const GUILD_ID =
+  '1437696431900070024';
+
+const WHITE_ANGELS_ROLE_ID =
+  '1437696432340467786';
+
+/* ============================================================
+   BOT
+   ============================================================ */
+
+class TitanBot extends Client {
+  constructor() {
+    super({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildBans,
+      ],
+    });
+
+    this.config = config;
+
+    this.commands =
+      new Collection();
+
+    this.events =
+      new Collection();
+
+    this.buttons =
+      new Collection();
+
+    this.selectMenus =
+      new Collection();
+
+    this.modals =
+      new Collection();
+
+    this.cooldowns =
+      new Collection();
+
+    this.db = null;
+
+    this.rest =
+      new REST({
+        version: '10',
+      }).setToken(
+        config.bot.token
+      );
+  }
+
+  /* ==========================================================
+     START
+     ========================================================== */
+
+  async start() {
+    try {
+      startupLog(
+        'Starting TitanBot...'
+      );
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            1000
+          )
+      );
+
+      /* ========================================================
+         DATABASE
+         ======================================================== */
+
+      startupLog(
+        'Initializing database...'
+      );
+
+      const dbInstance =
+        await initializeDatabase();
+
+      this.db =
+        dbInstance.db;
+
+      const dbStatus =
+        this.db.getStatus();
+
+      if (
+        dbStatus.isDegraded
+      ) {
+        logger.warn('');
+        logger.warn(
+          '╔═══════════════════════════════════════════════════════╗'
+        );
+        logger.warn(
+          '║ ⚠️  DATABASE RUNNING IN DEGRADED MODE                 ║'
+        );
+        logger.warn(
+          '║                                                       ║'
+        );
+        logger.warn(
+          '║ Connection: In-Memory Storage (PostgreSQL unavailable)║'
+        );
+        logger.warn(
+          '║ Data Persistence: DISABLED - data lost on restart    ║'
+        );
+        logger.warn(
+          '║ Action Required: Fix PostgreSQL and restart bot      ║'
+        );
+        logger.warn(
+          '╚═══════════════════════════════════════════════════════╝'
+        );
+        logger.warn('');
+      } else {
+        startupLog(
+          `✅ Database Status: ${dbStatus.connectionType} (fully operational)`
+        );
+      }
+
+      /* ========================================================
+         WEB SERVER
+         ======================================================== */
+
+      startupLog(
+        'Starting web server...'
+      );
+
+      this.startWebServer();
+
+      /* ========================================================
+         COMMANDS
+         ======================================================== */
+
+      startupLog(
+        'Loading commands...'
+      );
+
+      await loadCommands(
+        this
+      );
+
+      startupLog(
+        `Commands loaded: ${this.commands.size}`
+      );
+
+      /* ========================================================
+         HANDLERS
+         ======================================================== */
+
+      startupLog(
+        'Loading handlers...'
+      );
+
+      await this.loadHandlers();
+
+      startupLog(
+        'Handlers loaded'
+      );
+
+      /* ========================================================
+         MUSIC
+         ======================================================== */
+
+      initializeMusic(
+        this
+      );
+
+      /* ========================================================
+         DISCORD LOGIN
+         ======================================================== */
+
+      startupLog(
+        'Logging into Discord...'
+      );
+
+      await this.login(
+        this.config.bot.token
+      );
+
+      startupLog(
+        'Discord login successful'
+      );
+
+      /* ========================================================
+         SLASH COMMANDS
+         ======================================================== */
+
+      startupLog(
+        'Registering slash commands to Discord server...'
+      );
+
+      await this.registerCommands();
+
+      startupLog(
+        'Slash commands registration complete'
+      );
+
+      /* ========================================================
+         ONLINE
+         ======================================================== */
+
+      const databaseMode =
+        dbStatus.isDegraded
+          ? 'Optional in-memory mode (data resets after restart)'
+          : 'Connected (persistent data enabled)';
+
+      const handlerSummary =
+        `${this.buttons.size} buttons, ` +
+        `${this.selectMenus.size} menus, ` +
+        `${this.modals.size} modals`;
+
+      startupLog(
+        `ONLINE ✅ | ${this.commands.size} commands loaded | ${handlerSummary} | Database: ${databaseMode}`
+      );
+
+      /* ========================================================
+         CRON
+         ======================================================== */
+
+      this.setupCronJobs();
+
+    } catch (error) {
+      logger.error(
+        'Failed to start bot:',
+        error
+      );
+
+      console.error(
+        '[APP FATAL START ERROR]',
+        error
+      );
+
+      process.exit(1);
+    }
+  }
+
+  /* ==========================================================
+     WEB SERVER
+     ========================================================== */
+
+  startWebServer() {
+    const app =
+      express();
+
+    const configuredPort =
+      Number(
+        this.config.api?.port ||
+        process.env.PORT ||
+        3000
+      );
+
+    const maxPortRetryAttempts =
+      Number(
+        process.env.PORT_RETRY_ATTEMPTS ||
+        5
+      );
+
+    const host =
+      process.env.WEB_HOST ||
+      '0.0.0.0';
+
+    const corsOrigin =
+      this.config.api?.cors?.origin ||
+      '*';
+
+    /* ----------------------------------------------------------
+       CORS
+       ---------------------------------------------------------- */
+
+    app.use(
+      (
+        req,
+        res,
+        next
+      ) => {
+        const allowedOrigins =
+          Array.isArray(
+            corsOrigin
+          )
+            ? corsOrigin
+            : [corsOrigin];
+
+        const origin =
+          req.headers.origin;
+
+        if (
+          allowedOrigins.includes('*') ||
+          allowedOrigins.includes(origin)
+        ) {
+          res.header(
+            'Access-Control-Allow-Origin',
+            origin || '*'
+          );
+        }
+
+        res.header(
+          'Access-Control-Allow-Methods',
+          'GET, POST, OPTIONS'
+        );
+
+        res.header(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Authorization'
+        );
+
+        if (
+          req.method === 'OPTIONS'
+        ) {
+          return res.sendStatus(200);
+        }
+
+        next();
+      }
+    );
+
+    /* ----------------------------------------------------------
+       API RATE LIMIT
+       ---------------------------------------------------------- */
+
+    const requestCounts =
+      new Map();
+
+    const windowMs =
+      this.config.api?.rateLimit?.windowMs ||
+      60000;
+
+    const maxRequests =
+      this.config.api?.rateLimit?.max ||
+      100;
+
+    app.use(
+      (
+        req,
+        res,
+        next
+      ) => {
+        const ip =
+          req.ip;
+
+        const now =
+          Date.now();
+
+        const windowStart =
+          now - windowMs;
+
+        if (
+          !requestCounts.has(ip)
+        ) {
+          requestCounts.set(
+            ip,
+            []
+          );
+        }
+
+        const times =
+          requestCounts
+            .get(ip)
+            .filter(
+              t =>
+                t > windowStart
+            );
+
+        if (
+          times.length >= maxRequests
+        ) {
+          return res
+            .status(429)
+            .json({
+              error:
+                'Too many requests',
+            });
+        }
+
+        times.push(now);
+
+        requestCounts.set(
+          ip,
+          times
+        );
+
+        next();
+      }
+    );
+
+    /* ----------------------------------------------------------
+       HEALTH
+       ---------------------------------------------------------- */
+
+    app.get(
+      '/health',
+      (
+        req,
+        res
+      ) => {
+        const dbStatus =
+          this.db?.getStatus?.() || {
+            isDegraded:
+              'unknown',
+          };
+
+        const status = {
+          status:
+            'healthy',
+
+          timestamp:
+            new Date().toISOString(),
+
+          uptime:
+            process.uptime(),
+
+          database: {
+            connected:
+              dbStatus.connectionType !== 'none',
+
+            degraded:
+              dbStatus.isDegraded,
+
+            type:
+              dbStatus.connectionType,
+          },
+        };
+
+        res.status(200).json(status);
+      }
+    );
+
+    /* ----------------------------------------------------------
+       READY
+       ---------------------------------------------------------- */
+
+    app.get(
+      '/ready',
+      (
+        req,
+        res
+      ) => {
+        const dbStatus =
+          this.db?.getStatus?.() || {
+            isDegraded: true,
+            connectionType: 'none',
+          };
+
+        const isReady =
+          this.isReady() &&
+          !dbStatus.isDegraded;
+
+        const metrics = {
+          guildCount:
+            this.guilds?.cache?.size ?? 0,
+
+          commandCount:
+            this.commands?.size ?? 0,
+
+          database: {
+            mode:
+              dbStatus.connectionType,
+
+            degraded:
+              dbStatus.isDegraded,
+
+            degradedReason:
+              dbStatus.degradedReason ?? null,
+          },
+
+          schemaVersion:
+            EXPECTED_SCHEMA_VERSION,
+
+          schemaLabel:
+            EXPECTED_SCHEMA_LABEL,
+        };
+
+        if (
+          isReady
+        ) {
+          return res
+            .status(200)
+            .json({
+              ready:
+                true,
+
+              message:
+                'Bot is ready',
+
+              metrics,
+            });
+        }
+
+        res
+          .status(503)
+          .json({
+            ready:
+              false,
+
+            reason:
+              !this.isReady()
+                ? 'Bot not Ready'
+                : 'Database degraded',
+
+            metrics,
+          });
+      }
+    );
+
+    /* ----------------------------------------------------------
+       ROOT
+       ---------------------------------------------------------- */
+
+    app.get(
+      '/',
+      (
+        req,
+        res
+      ) => {
+        res.status(200).json({
+          message:
+            'TitanBot System Online',
+
+          version:
+            pkg.version,
+
+          timestamp:
+            new Date().toISOString(),
+        });
+      }
+    );
+
+    /* ----------------------------------------------------------
+       SERVER START
+       ---------------------------------------------------------- */
+
+    const startServer =
+      (
+        port,
+        attempt = 0
+      ) => {
+        let hasStartedListening =
+          false;
+
+        const server =
+          app.listen(
+            port,
+            host,
+            () => {
+              hasStartedListening =
+                true;
+
+              this.webServer =
+                server;
+
+              startupLog(
+                `✅ Web Server running on ${host}:${port}`
+              );
+
+              startupLog(
+                `Health endpoint: http://${host}:${port}/health`
+              );
+
+              startupLog(
+                `Ready endpoint: http://${host}:${port}/ready`
+              );
+            }
+          );
+
+        server.on(
+          'error',
+          (
+            error
+          ) => {
+            const errorCode =
+              error?.code ||
+              'UNKNOWN_ERROR';
+
+            const errorMessage =
+              error?.message ||
+              'Unknown server error';
 
             if (
-                interaction.options.getSubcommand() ===
-                'setup'
+              !hasStartedListening &&
+              errorCode === 'EADDRINUSE' &&
+              attempt < maxPortRetryAttempts
             ) {
-                /*
-                 * Haal het kanaal DIRECT uit de slash command.
-                 *
-                 * Belangrijk:
-                 * We gebruiken hier:
-                 *
-                 * getChannel('kanaal')
-                 *
-                 * en NIET:
-                 *
-                 * getString('kanaal')
-                 */
+              const nextPort =
+                port + 1;
 
-                const channel =
-                    interaction.options.getChannel(
-                        'kanaal'
-                    );
+              startupLog(
+                `Port ${port} is already in use. Trying port ${nextPort}...`
+              );
 
-                const role =
-                    interaction.options.getRole(
-                        'rol'
-                    );
+              setTimeout(
+                () =>
+                  startServer(
+                    nextPort,
+                    attempt + 1
+                  ),
+                250
+              );
 
-                /*
-                 * =================================================
-                 * CONTROLE KANAAL
-                 * =================================================
-                 */
-
-                if (!channel) {
-                    return interaction.reply({
-                        content:
-                            '❌ Discord heeft geen kanaal ontvangen.\n\n' +
-                            'Gebruik `/verification setup` opnieuw en selecteer een tekstkanaal.',
-                        ephemeral: true,
-                    });
-                }
-
-                if (
-                    channel.type !==
-                    ChannelType.GuildText
-                ) {
-                    return interaction.reply({
-                        content:
-                            '❌ Het geselecteerde kanaal is geen tekstkanaal.\n\n' +
-                            'Selecteer een normaal tekstkanaal.',
-                        ephemeral: true,
-                    });
-                }
-
-                /*
-                 * =================================================
-                 * CONTROLE ROL
-                 * =================================================
-                 */
-
-                if (!role) {
-                    return interaction.reply({
-                        content:
-                            '❌ Discord heeft geen rol ontvangen.\n\n' +
-                            'Gebruik `/verification setup` opnieuw en selecteer een rol.',
-                        ephemeral: true,
-                    });
-                }
-
-                /*
-                 * =================================================
-                 * CONTROLE BOT PERMISSIONS
-                 * =================================================
-                 */
-
-                const botMember =
-                    interaction.guild.members.me;
-
-                if (!botMember) {
-                    return interaction.reply({
-                        content:
-                            '❌ Ik kon mijn eigen bot-lid niet vinden.',
-                        ephemeral: true,
-                    });
-                }
-
-                const permissions =
-                    channel.permissionsFor(
-                        botMember
-                    );
-
-                if (
-                    !permissions?.has(
-                        PermissionFlagsBits.ViewChannel
-                    )
-                ) {
-                    return interaction.reply({
-                        content:
-                            '❌ Ik kan het geselecteerde kanaal niet bekijken.\n\n' +
-                            'Geef de bot de permissie **Kanaal bekijken**.',
-                        ephemeral: true,
-                    });
-                }
-
-                if (
-                    !permissions?.has(
-                        PermissionFlagsBits.SendMessages
-                    )
-                ) {
-                    return interaction.reply({
-                        content:
-                            '❌ Ik kan niet in het geselecteerde kanaal berichten sturen.\n\n' +
-                            'Geef de bot de permissie **Berichten verzenden**.',
-                        ephemeral: true,
-                    });
-                }
-
-                /*
-                 * =================================================
-                 * CONTROLE ROL POSITIE
-                 * =================================================
-                 */
-
-                if (
-                    role.position >=
-                    botMember.roles.highest.position
-                ) {
-                    return interaction.reply({
-                        content:
-                            '❌ Ik kan de rol **' +
-                            role.name +
-                            '** niet geven.\n\n' +
-                            'Zet mijn botrol boven deze rol in de Discord-rollenlijst.',
-                        ephemeral: true,
-                    });
-                }
-
-                /*
-                 * =================================================
-                 * VERIFICATION EMBED
-                 * =================================================
-                 */
-
-                const embed =
-                    new EmbedBuilder()
-                        .setTitle(
-                            '🔐 Verificatie'
-                        )
-                        .setDescription(
-                            'Welkom bij **White Angels**.\n\n' +
-                            'Klik hieronder op de knop **Verifiëren** om toegang te krijgen tot de server.\n\n' +
-                            'Na verificatie ontvang je automatisch de juiste rol.'
-                        )
-                        .setColor(
-                            0x2b2d31
-                        )
-                        .setFooter({
-                            text:
-                                'White Angels • Verificatie',
-                        })
-                        .setTimestamp();
-
-                /*
-                 * =================================================
-                 * BUTTON
-                 * =================================================
-                 */
-
-                const button =
-                    new ButtonBuilder()
-                        .setCustomId(
-                            'verification_verify'
-                        )
-                        .setLabel(
-                            'Verifiëren'
-                        )
-                        .setEmoji(
-                            '✅'
-                        )
-                        .setStyle(
-                            ButtonStyle.Success
-                        );
-
-                const row =
-                    new ActionRowBuilder()
-                        .addComponents(
-                            button
-                        );
-
-                /*
-                 * =================================================
-                 * SEND PANEL
-                 * =================================================
-                 */
-
-                await channel.send({
-                    embeds: [
-                        embed,
-                    ],
-                    components: [
-                        row,
-                    ],
-                });
-
-                /*
-                 * =================================================
-                 * SUCCESS
-                 * =================================================
-                 */
-
-                return interaction.reply({
-                    content:
-                        '✅ Het verificatiepaneel is succesvol geplaatst in ' +
-                        channel +
-                        '!\n\n' +
-                        '🎭 Verificatierol: ' +
-                        role +
-                        '\n\n' +
-                        '🔐 Rol-ID: `' +
-                        role.id +
-                        '`',
-                    ephemeral: true,
-                });
+              return;
             }
-        } catch (error) {
-            console.error(
-                'Verification setup error:',
-                error
+
+            if (
+              hasStartedListening &&
+              errorCode === 'EADDRINUSE'
+            ) {
+              logger.warn(
+                `Web server reported a duplicate bind warning on ${host}:${port}, but the bot remains online.`
+              );
+
+              return;
+            }
+
+            logger.error(
+              `❌ Web server error on port ${port} (${errorCode}): ${errorMessage}`
             );
 
             if (
-                interaction.replied ||
-                interaction.deferred
+              !hasStartedListening
             ) {
-                return interaction.followUp({
-                    content:
-                        '❌ Er ging iets fout bij het instellen van het verificatiesysteem.\n\n' +
-                        'Fout: `' +
-                        error.message +
-                        '`',
-                    ephemeral: true,
-                });
+              process.exit(1);
             }
+          }
+        );
+      };
 
-            return interaction.reply({
-                content:
-                    '❌ Er ging iets fout bij het instellen van het verificatiesysteem.\n\n' +
-                    'Fout: `' +
-                    error.message +
-                    '`',
-                ephemeral: true,
-            });
+    startServer(
+      configuredPort,
+      0
+    );
+  }
+
+  /* ==========================================================
+     CRON JOBS
+     ========================================================== */
+
+  setupCronJobs() {
+    cron.schedule(
+      '0 6 * * *',
+      runSafeTask(
+        'birthday_check',
+        () =>
+          checkBirthdays(this)
+      )
+    );
+
+    cron.schedule(
+      '* * * * *',
+      runSafeTask(
+        'giveaway_check',
+        () =>
+          checkGiveaways(this)
+      )
+    );
+
+    cron.schedule(
+      '*/15 * * * *',
+      runSafeTask(
+        'counter_update',
+        () =>
+          this.updateAllCounters()
+      )
+    );
+  }
+
+  /* ==========================================================
+     COUNTERS
+     ========================================================== */
+
+  async updateAllCounters() {
+    if (!this.db) {
+      logger.warn(
+        'Database not available for counter updates'
+      );
+
+      return;
+    }
+
+    for (
+      const [guildId, guild]
+      of this.guilds.cache
+    ) {
+      try {
+        const counters =
+          await getServerCounters(
+            this,
+            guildId
+          );
+
+        const validCounters = [];
+        const orphanedCounters = [];
+
+        for (
+          const counter
+          of counters
+        ) {
+          if (
+            counter &&
+            counter.type &&
+            counter.channelId &&
+            counter.enabled !== false
+          ) {
+            const channel =
+              guild.channels.cache.get(
+                counter.channelId
+              );
+
+            if (channel) {
+              validCounters.push(
+                counter
+              );
+
+              await updateCounter(
+                this,
+                guild,
+                counter
+              );
+            } else {
+              orphanedCounters.push(
+                counter
+              );
+
+              logger.info(
+                `Removing orphaned counter ${counter.id} (type: ${counter.type}, deleted channel: ${counter.channelId}) from guild ${guildId}`
+              );
+            }
+          }
         }
-    },
-};
+
+        if (
+          orphanedCounters.length > 0
+        ) {
+          await saveServerCounters(
+            this,
+            guildId,
+            validCounters
+          );
+
+          logger.info(
+            `Cleaned up ${orphanedCounters.length} orphaned counter(s) from guild ${guildId} during scheduled update`
+          );
+        }
+      } catch (error) {
+        logger.error(
+          `Error updating counters for guild ${guildId}:`,
+          error
+        );
+      }
+    }
+  }
+
+  /* ==========================================================
+     LOAD HANDLERS
+     ========================================================== */
+
+  async loadHandlers() {
+    startupLog(
+      'Loading handlers...'
+    );
+
+    const handlers = [
+      {
+        path: 'events',
+        type: 'default',
+        required: true,
+      },
+      {
+        path: 'interactions',
+        type: 'default',
+        required: true,
+      },
+    ];
+
+    for (
+      const handler
+      of handlers
+    ) {
+      try {
+        startupLog(
+          `Loading handler: ${handler.path}`
+        );
+
+        const module =
+          await import(
+            `./handlers/loaders/${handler.path}.js`
+          );
+
+        const loaderFn =
+          handler.type.startsWith('named:')
+            ? module[
+                handler.type.split(':')[1]
+              ]
+            : module.default;
+
+        if (
+          typeof loaderFn === 'function'
+        ) {
+          await loaderFn(this);
+
+          startupLog(
+            `✅ Loaded ${handler.path}`
+          );
+        } else {
+          throw new Error(
+            `Invalid loader export from ${handler.path}`
+          );
+        }
+      } catch (error) {
+        if (handler.required) {
+          logger.error(
+            `❌ Failed to load required handler ${handler.path}:`,
+            error.message
+          );
+
+          console.error(
+            `[HANDLER ERROR: ${handler.path}]`,
+            error
+          );
+
+          throw error;
+        }
+
+        if (
+          error.code !==
+          'MODULE_NOT_FOUND'
+        ) {
+          logger.warn(
+            `⚠️ Failed to load optional handler ${handler.path}:`,
+            error.message
+          );
+        }
+      }
+    }
+  }
+
+  /* ==========================================================
+     REGISTER COMMANDS
+     ========================================================== */
+
+  async registerCommands() {
+    try {
+      await registerSlashCommands(
+        this,
+        {
+          clientId:
+            CLIENT_ID,
+
+          guildId:
+            GUILD_ID,
+        }
+      );
+
+      startupLog(
+        `Commands registered to White Angels server ${GUILD_ID}`
+      );
+    } catch (error) {
+      logger.error(
+        'Error registering commands:',
+        error
+      );
+
+      console.error(
+        '[COMMAND REGISTRATION ERROR]',
+        error
+      );
+
+      throw error;
+    }
+  }
+
+  /* ==========================================================
+     SHUTDOWN
+     ========================================================== */
+
+  async shutdown(
+    reason = 'UNKNOWN'
+  ) {
+    shutdownLog(
+      `Bot is shutting down (${reason})...`
+    );
+
+    logger.info(
+      `\n${'='.repeat(60)}`
+    );
+
+    logger.info(
+      `🛑 Graceful Shutdown Initiated (${reason})`
+    );
+
+    logger.info(
+      `${'='.repeat(60)}`
+    );
+
+    try {
+      /* --------------------------------------------------------
+         STOP CRON
+         -------------------------------------------------------- */
+
+      logger.info(
+        'Stopping cron jobs...'
+      );
+
+      cron
+        .getTasks()
+        .forEach(
+          task =>
+            task.stop()
+        );
+
+      logger.info(
+        '✅ Cron jobs stopped'
+      );
+
+      /* --------------------------------------------------------
+         MUSIC
+         -------------------------------------------------------- */
+
+      logger.info(
+        'Stopping music players...'
+      );
+
+      await shutdownMusic(
+        this
+      );
+
+      logger.info(
+        '✅ Music players stopped'
+      );
+
+      /* --------------------------------------------------------
+         WEB SERVER
+         -------------------------------------------------------- */
+
+      if (
+        this.webServer
+      ) {
+        logger.info(
+          'Closing web server...'
+        );
+
+        await new Promise(
+          resolve =>
+            this.webServer.close(
+              resolve
+            )
+        );
+
+        logger.info(
+          '✅ Web server closed'
+        );
+      }
+
+      /* --------------------------------------------------------
+         DATABASE
+         -------------------------------------------------------- */
+
+      if (
+        this.db &&
+        this.db.db
+      ) {
+        logger.info(
+          'Closing database connection...'
+        );
+
+        try {
+          if (
+            this.db.db.pool
+          ) {
+            await this.db.db.pool.end();
+
+            logger.info(
+              '✅ Database connection closed'
+            );
+          }
+        } catch (error) {
+          logger.warn(
+            'Error closing database pool:',
+            error.message
+          );
+        }
+      }
+
+      /* --------------------------------------------------------
+         DISCORD
+         -------------------------------------------------------- */
+
+      logger.info(
+        'Destroying Discord client...'
+      );
+
+      if (
+        this.isReady()
+      ) {
+        try {
+          this.destroy();
+
+          logger.info(
+            '✅ Discord client destroyed'
+          );
+        } catch (error) {
+          logger.warn(
+            'Discord client destroy warning (non-critical):',
+            error.message
+          );
+        }
+      }
+
+      logger.info(
+        '✅ Graceful shutdown complete'
+      );
+
+      shutdownLog(
+        'Bot stopped successfully.'
+      );
+
+      process.exit(0);
+
+    } catch (error) {
+      logger.error(
+        'Error during graceful shutdown:',
+        error
+      );
+
+      console.error(
+        '[SHUTDOWN ERROR]',
+        error
+      );
+
+      process.exit(1);
+    }
+  }
+}
+
+/* ============================================================
+   START BOT
+   ============================================================ */
+
+try {
+  console.log(
+    '[APP] Creating TitanBot instance...'
+  );
+
+  const bot =
+    new TitanBot();
+
+  console.log(
+    '[APP] TitanBot instance created.'
+  );
+
+  const setupShutdown =
+    () => {
+
+      process.on(
+        'SIGTERM',
+        () =>
+          bot.shutdown(
+            'SIGTERM'
+          )
+      );
+
+      process.on(
+        'SIGINT',
+        () =>
+          bot.shutdown(
+            'SIGINT'
+          )
+      );
+
+      process.on(
+        'uncaughtException',
+        error => {
+
+          console.error(
+            '[UNCAUGHT EXCEPTION]',
+            error
+          );
+
+          handleTaskError(
+            'uncaught_exception',
+            error,
+            {
+              fatal:
+                true,
+            }
+          );
+
+          bot.shutdown(
+            'UNCAUGHT_EXCEPTION'
+          );
+        }
+      );
+
+      process.on(
+        'unhandledRejection',
+        reason => {
+
+          console.error(
+            '[UNHANDLED REJECTION]',
+            reason
+          );
+
+          const code =
+            reason?.code;
+
+          if (
+            code === 10062 ||
+            code === 40060 ||
+            code === 50027
+          ) {
+            logger.warn(
+              'Recoverable Discord interaction rejection:',
+              reason?.message ||
+                reason
+            );
+
+            return;
+          }
+
+          if (
+            reason?.message?.includes(
+              'Queue is empty'
+            )
+          ) {
+            return;
+          }
+
+          handleTaskError(
+            'unhandled_rejection',
+            reason instanceof Error
+              ? reason
+              : new Error(
+                  String(reason)
+                ),
+            {
+              errorCode:
+                ErrorCodes.UNHANDLED_REJECTION,
+            }
+          );
+        }
+      );
+    };
+
+  setupShutdown();
+
+  console.log(
+    '[APP] Starting bot...'
+  );
+
+  bot.start().catch(
+    error => {
+
+      console.error(
+        '[BOT START CATCH]',
+        error
+      );
+
+      logger.error(
+        'Fatal error during bot startup:',
+        error
+      );
+
+      bot.shutdown(
+        'STARTUP_ERROR'
+      );
+    }
+  );
+
+} catch (error) {
+
+  console.error(
+    '[APP FATAL]',
+    error
+  );
+
+  logger.error(
+    'Fatal error during bot startup:',
+    error
+  );
+
+  process.exit(1);
+}
+
+export default TitanBot;
