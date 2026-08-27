@@ -1,4 +1,4 @@
-console.log('🔥 VERIFICATION.JS WORDT GELADEN 🔥');
+console.log('[VERIFICATION FILE] WORDT GELADEN');
 
 import {
     SlashCommandBuilder,
