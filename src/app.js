@@ -1,7 +1,5 @@
 import 'dotenv/config';
 
-console.log('[APP] app.js wordt gestart...');
-
 import {
   Client,
   Collection,
@@ -303,11 +301,6 @@ class TitanBot extends Client {
         error
       );
 
-      console.error(
-        '[APP FATAL START ERROR]',
-        error
-      );
-
       process.exit(1);
     }
   }
@@ -363,7 +356,9 @@ class TitanBot extends Client {
 
         if (
           allowedOrigins.includes('*') ||
-          allowedOrigins.includes(origin)
+          allowedOrigins.includes(
+            origin
+          )
         ) {
           res.header(
             'Access-Control-Allow-Origin',
@@ -382,9 +377,12 @@ class TitanBot extends Client {
         );
 
         if (
-          req.method === 'OPTIONS'
+          req.method ===
+          'OPTIONS'
         ) {
-          return res.sendStatus(200);
+          return res.sendStatus(
+            200
+          );
         }
 
         next();
@@ -422,7 +420,9 @@ class TitanBot extends Client {
           now - windowMs;
 
         if (
-          !requestCounts.has(ip)
+          !requestCounts.has(
+            ip
+          )
         ) {
           requestCounts.set(
             ip,
@@ -435,11 +435,13 @@ class TitanBot extends Client {
             .get(ip)
             .filter(
               t =>
-                t > windowStart
+                t >
+                windowStart
             );
 
         if (
-          times.length >= maxRequests
+          times.length >=
+          maxRequests
         ) {
           return res
             .status(429)
@@ -449,7 +451,9 @@ class TitanBot extends Client {
             });
         }
 
-        times.push(now);
+        times.push(
+          now
+        );
 
         requestCounts.set(
           ip,
@@ -471,7 +475,8 @@ class TitanBot extends Client {
         res
       ) => {
         const dbStatus =
-          this.db?.getStatus?.() || {
+          this.db?.getStatus?.() ||
+          {
             isDegraded:
               'unknown',
           };
@@ -488,7 +493,8 @@ class TitanBot extends Client {
 
           database: {
             connected:
-              dbStatus.connectionType !== 'none',
+              dbStatus.connectionType !==
+              'none',
 
             degraded:
               dbStatus.isDegraded,
@@ -498,7 +504,11 @@ class TitanBot extends Client {
           },
         };
 
-        res.status(200).json(status);
+        res.status(
+          200
+        ).json(
+          status
+        );
       }
     );
 
@@ -513,9 +523,13 @@ class TitanBot extends Client {
         res
       ) => {
         const dbStatus =
-          this.db?.getStatus?.() || {
-            isDegraded: true,
-            connectionType: 'none',
+          this.db?.getStatus?.() ||
+          {
+            isDegraded:
+              true,
+
+            connectionType:
+              'none',
           };
 
         const isReady =
@@ -524,10 +538,12 @@ class TitanBot extends Client {
 
         const metrics = {
           guildCount:
-            this.guilds?.cache?.size ?? 0,
+            this.guilds?.cache?.size ??
+            0,
 
           commandCount:
-            this.commands?.size ?? 0,
+            this.commands?.size ??
+            0,
 
           database: {
             mode:
@@ -537,7 +553,8 @@ class TitanBot extends Client {
               dbStatus.isDegraded,
 
             degradedReason:
-              dbStatus.degradedReason ?? null,
+              dbStatus.degradedReason ??
+              null,
           },
 
           schemaVersion:
@@ -589,7 +606,9 @@ class TitanBot extends Client {
         req,
         res
       ) => {
-        res.status(200).json({
+        res.status(
+          200
+        ).json({
           message:
             'TitanBot System Online',
 
@@ -654,8 +673,10 @@ class TitanBot extends Client {
 
             if (
               !hasStartedListening &&
-              errorCode === 'EADDRINUSE' &&
-              attempt < maxPortRetryAttempts
+              errorCode ===
+                'EADDRINUSE' &&
+              attempt <
+                maxPortRetryAttempts
             ) {
               const nextPort =
                 port + 1;
@@ -678,7 +699,8 @@ class TitanBot extends Client {
 
             if (
               hasStartedListening &&
-              errorCode === 'EADDRINUSE'
+              errorCode ===
+                'EADDRINUSE'
             ) {
               logger.warn(
                 `Web server reported a duplicate bind warning on ${host}:${port}, but the bot remains online.`
@@ -694,7 +716,9 @@ class TitanBot extends Client {
             if (
               !hasStartedListening
             ) {
-              process.exit(1);
+              process.exit(
+                1
+              );
             }
           }
         );
@@ -716,7 +740,9 @@ class TitanBot extends Client {
       runSafeTask(
         'birthday_check',
         () =>
-          checkBirthdays(this)
+          checkBirthdays(
+            this
+          )
       )
     );
 
@@ -725,7 +751,9 @@ class TitanBot extends Client {
       runSafeTask(
         'giveaway_check',
         () =>
-          checkGiveaways(this)
+          checkGiveaways(
+            this
+          )
       )
     );
 
@@ -804,7 +832,8 @@ class TitanBot extends Client {
         }
 
         if (
-          orphanedCounters.length > 0
+          orphanedCounters.length >
+          0
         ) {
           await saveServerCounters(
             this,
@@ -816,7 +845,9 @@ class TitanBot extends Client {
             `Cleaned up ${orphanedCounters.length} orphaned counter(s) from guild ${guildId} during scheduled update`
           );
         }
-      } catch (error) {
+      } catch (
+        error
+      ) {
         logger.error(
           `Error updating counters for guild ${guildId}:`,
           error
@@ -836,14 +867,24 @@ class TitanBot extends Client {
 
     const handlers = [
       {
-        path: 'events',
-        type: 'default',
-        required: true,
+        path:
+          'events',
+
+        type:
+          'default',
+
+        required:
+          true,
       },
       {
-        path: 'interactions',
-        type: 'default',
-        required: true,
+        path:
+          'interactions',
+
+        type:
+          'default',
+
+        required:
+          true,
       },
     ];
 
@@ -862,16 +903,23 @@ class TitanBot extends Client {
           );
 
         const loaderFn =
-          handler.type.startsWith('named:')
+          handler.type.startsWith(
+            'named:'
+          )
             ? module[
-                handler.type.split(':')[1]
+                handler.type.split(
+                  ':'
+                )[1]
               ]
             : module.default;
 
         if (
-          typeof loaderFn === 'function'
+          typeof loaderFn ===
+          'function'
         ) {
-          await loaderFn(this);
+          await loaderFn(
+            this
+          );
 
           startupLog(
             `✅ Loaded ${handler.path}`
@@ -881,16 +929,15 @@ class TitanBot extends Client {
             `Invalid loader export from ${handler.path}`
           );
         }
-      } catch (error) {
-        if (handler.required) {
+      } catch (
+        error
+      ) {
+        if (
+          handler.required
+        ) {
           logger.error(
             `❌ Failed to load required handler ${handler.path}:`,
             error.message
-          );
-
-          console.error(
-            `[HANDLER ERROR: ${handler.path}]`,
-            error
           );
 
           throw error;
@@ -915,6 +962,49 @@ class TitanBot extends Client {
 
   async registerCommands() {
     try {
+      /*
+       * Eerst alle bestaande guild commands verwijderen.
+       *
+       * Dit is belangrijk omdat Discord anders een oude
+       * geregistreerde /verification command kan behouden.
+       */
+
+      startupLog(
+        `Removing old slash commands from guild ${GUILD_ID}...`
+      );
+
+      await this.rest.put(
+        `/applications/${CLIENT_ID}/guilds/${GUILD_ID}/commands`,
+        {
+          body: [],
+        }
+      );
+
+      startupLog(
+        '✅ Old guild slash commands removed'
+      );
+
+      /*
+       * Kleine vertraging zodat Discord zeker de oude
+       * command-cache heeft verwerkt.
+       */
+
+      await new Promise(
+        resolve =>
+          setTimeout(
+            resolve,
+            1000
+          )
+      );
+
+      /*
+       * Nieuwe commands registreren.
+       */
+
+      startupLog(
+        `Registering fresh slash commands to guild ${GUILD_ID}...`
+      );
+
       await registerSlashCommands(
         this,
         {
@@ -929,14 +1019,12 @@ class TitanBot extends Client {
       startupLog(
         `Commands registered to White Angels server ${GUILD_ID}`
       );
-    } catch (error) {
+
+    } catch (
+      error
+    ) {
       logger.error(
         'Error registering commands:',
-        error
-      );
-
-      console.error(
-        '[COMMAND REGISTRATION ERROR]',
         error
       );
 
@@ -1048,7 +1136,9 @@ class TitanBot extends Client {
               '✅ Database connection closed'
             );
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           logger.warn(
             'Error closing database pool:',
             error.message
@@ -1073,7 +1163,9 @@ class TitanBot extends Client {
           logger.info(
             '✅ Discord client destroyed'
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
           logger.warn(
             'Discord client destroy warning (non-critical):',
             error.message
@@ -1089,20 +1181,21 @@ class TitanBot extends Client {
         'Bot stopped successfully.'
       );
 
-      process.exit(0);
+      process.exit(
+        0
+      );
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
       logger.error(
         'Error during graceful shutdown:',
         error
       );
 
-      console.error(
-        '[SHUTDOWN ERROR]',
-        error
+      process.exit(
+        1
       );
-
-      process.exit(1);
     }
   }
 }
@@ -1112,20 +1205,11 @@ class TitanBot extends Client {
    ============================================================ */
 
 try {
-  console.log(
-    '[APP] Creating TitanBot instance...'
-  );
-
   const bot =
     new TitanBot();
 
-  console.log(
-    '[APP] TitanBot instance created.'
-  );
-
   const setupShutdown =
     () => {
-
       process.on(
         'SIGTERM',
         () =>
@@ -1145,12 +1229,6 @@ try {
       process.on(
         'uncaughtException',
         error => {
-
-          console.error(
-            '[UNCAUGHT EXCEPTION]',
-            error
-          );
-
           handleTaskError(
             'uncaught_exception',
             error,
@@ -1169,12 +1247,6 @@ try {
       process.on(
         'unhandledRejection',
         reason => {
-
-          console.error(
-            '[UNHANDLED REJECTION]',
-            reason
-          );
-
           const code =
             reason?.code;
 
@@ -1202,10 +1274,13 @@ try {
 
           handleTaskError(
             'unhandled_rejection',
-            reason instanceof Error
+            reason instanceof
+              Error
               ? reason
               : new Error(
-                  String(reason)
+                  String(
+                    reason
+                  )
                 ),
             {
               errorCode:
@@ -1218,18 +1293,8 @@ try {
 
   setupShutdown();
 
-  console.log(
-    '[APP] Starting bot...'
-  );
-
   bot.start().catch(
     error => {
-
-      console.error(
-        '[BOT START CATCH]',
-        error
-      );
-
       logger.error(
         'Fatal error during bot startup:',
         error
@@ -1241,19 +1306,17 @@ try {
     }
   );
 
-} catch (error) {
-
-  console.error(
-    '[APP FATAL]',
-    error
-  );
-
+} catch (
+  error
+) {
   logger.error(
     'Fatal error during bot startup:',
     error
   );
 
-  process.exit(1);
+  process.exit(
+    1
+  );
 }
 
 export default TitanBot;
