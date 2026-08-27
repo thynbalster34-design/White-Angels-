@@ -98,7 +98,7 @@ const VERIFICATION_BUTTON_ID =
 
 
 /* ============================================================
-   BESTAANDE SAINTS BUTTON
+   SAINTS ROLE BUTTON
    ============================================================ */
 
 const SAINTS_ROLE_ID =
@@ -149,6 +149,31 @@ export default {
     client
   ) {
 
+    /* ========================================================
+       CLIENT VALIDATION
+       ======================================================== */
+
+    if (!client) {
+      logger.error(
+        '[InteractionCreate] Client argument ontbreekt.'
+      );
+
+      return;
+    }
+
+    if (!client.commands) {
+      logger.error(
+        '[InteractionCreate] client.commands bestaat niet.'
+      );
+
+      return;
+    }
+
+
+    /* ========================================================
+       TRACE
+       ======================================================== */
+
     const interactionTraceContext =
       createInteractionTraceContext(
         interaction
@@ -168,6 +193,10 @@ export default {
 
         try {
 
+          /* ==================================================
+             PATCH INTERACTION
+             ================================================== */
+
           InteractionHelper.patchInteractionResponses(
             interaction
           );
@@ -186,18 +215,35 @@ export default {
           ) {
 
             /* ====================================================
-               VERIFICATION SPECIAL ROUTE
-               ====================================================
+               LOG COMMAND
+               ==================================================== */
 
-               Verification wordt hier direct uitgevoerd.
+            logger.info(
+              `[InteractionCreate] Slash command ontvangen: /${interaction.commandName}`,
+              {
+                event:
+                  'interaction.command.received',
 
-               Hierdoor wordt het niet tegengehouden door:
-               - command payload validation
-               - guild command access
-               - cooldown
-               - abuse protection
-               - overige algemene command checks
+                traceId:
+                  interactionTraceContext.traceId,
 
+                guildId:
+                  interaction.guildId,
+
+                userId:
+                  interaction.user?.id,
+
+                userTag:
+                  interaction.user?.tag,
+
+                command:
+                  interaction.commandName
+              }
+            );
+
+
+            /* ====================================================
+               VERIFICATION
                ==================================================== */
 
             if (
@@ -237,18 +283,29 @@ export default {
                     '[Verification] Command not found in client.commands'
                   );
 
-                  return await interaction.reply({
-                    content:
-                      '❌ Het verification commando is niet geladen.',
-                    flags:
-                      MessageFlags.Ephemeral
-                  });
+                  if (
+                    !interaction.replied &&
+                    !interaction.deferred
+                  ) {
+
+                    return await interaction.reply({
+                      content:
+                        '❌ Het verification commando is niet geladen.',
+
+                      flags:
+                        MessageFlags.Ephemeral
+                    });
+
+                  }
+
+                  return;
                 }
 
 
-                /*
-                 * Direct uitvoeren.
-                 */
+                logger.info(
+                  '[Verification] Executing verification command'
+                );
+
 
                 return await verificationCommand.execute(
                   interaction,
@@ -287,6 +344,7 @@ export default {
                   return await interaction.reply({
                     content:
                       `❌ Er ging iets mis met verificatie.\n\n\`${error?.message || 'Onbekende fout'}\``,
+
                     flags:
                       MessageFlags.Ephemeral
                   }).catch(
@@ -301,40 +359,62 @@ export default {
 
 
             /* ====================================================
-               NORMALE COMMAND ROUTE
+               COMMAND VALIDATION
                ==================================================== */
 
-            try {
+            validateChatInputPayloadOrThrow(
+              interaction,
 
-              logger.info(
-                `Command executed: /${interaction.commandName} by ${interaction.user.tag}`,
+              withTraceContext(
                 {
-                  event:
-                    'interaction.command.received',
+                  type:
+                    'command_input_validation',
+
+                  commandName:
+                    interaction.commandName
+                },
+
+                interactionTraceContext
+              )
+            );
+
+
+            /* ====================================================
+               COMMAND OPZOEKEN
+               ==================================================== */
+
+            const command =
+              client.commands.get(
+                interaction.commandName
+              );
+
+
+            if (!command) {
+
+              logger.error(
+                `[InteractionCreate] Command niet gevonden: ${interaction.commandName}`,
+                {
+                  commandName:
+                    interaction.commandName,
+
+                  loadedCommands:
+                    client.commands.size,
 
                   traceId:
-                    interactionTraceContext.traceId,
-
-                  guildId:
-                    interaction.guildId,
-
-                  userId:
-                    interaction.user?.id,
-
-                  command:
-                    interaction.commandName
+                    interactionTraceContext.traceId
                 }
               );
 
 
-              validateChatInputPayloadOrThrow(
-                interaction,
+              throw createError(
+                `No command matching ${interaction.commandName} was found.`,
+
+                ErrorTypes.CONFIGURATION,
+
+                'Sorry, that command does not exist.',
 
                 withTraceContext(
                   {
-                    type:
-                      'command_input_validation',
-
                     commandName:
                       interaction.commandName
                   },
@@ -342,357 +422,366 @@ export default {
                   interactionTraceContext
                 )
               );
+            }
 
 
-              const command =
-                client.commands.get(
-                  interaction.commandName
-                );
+            logger.info(
+              `[InteractionCreate] Command gevonden: /${interaction.commandName}`,
+              {
+                category:
+                  command.category,
 
+                filePath:
+                  command.filePath,
 
-              if (!command) {
-
-                throw createError(
-                  `No command matching ${interaction.commandName} was found.`,
-
-                  ErrorTypes.CONFIGURATION,
-
-                  'Sorry, that command does not exist.',
-
-                  withTraceContext(
-                    {
-                      commandName:
-                        interaction.commandName
-                    },
-
-                    interactionTraceContext
-                  )
-                );
+                traceId:
+                  interactionTraceContext.traceId
               }
+            );
 
 
-              /* ==================================================
-                 MAINTENANCE
-                 ================================================== */
+            /* ==================================================
+               MAINTENANCE
+               ================================================== */
 
-              if (
-                isMaintenanceMode() &&
-                !isBotOwner(
-                  interaction.user.id
-                )
-              ) {
-
-                throw createError(
-                  'Bot is in maintenance mode',
-
-                  ErrorTypes.CONFIGURATION,
-
-                  getBotMessage(
-                    'maintenanceMode'
-                  ),
-
-                  withTraceContext(
-                    {
-                      commandName:
-                        interaction.commandName
-                    },
-
-                    interactionTraceContext
-                  )
-                );
-              }
-
-
-              /* ==================================================
-                 CATEGORY
-                 ================================================== */
-
-              if (
-                !isCommandCategoryEnabled(
-                  command.category
-                )
-              ) {
-
-                throw createError(
-                  `Feature disabled for category ${command.category}`,
-
-                  ErrorTypes.CONFIGURATION,
-
-                  getBotMessage(
-                    'commandDisabled'
-                  ),
-
-                  withTraceContext(
-                    {
-                      commandName:
-                        interaction.commandName,
-
-                      category:
-                        command.category
-                    },
-
-                    interactionTraceContext
-                  )
-                );
-              }
-
-
-              /* ==================================================
-                 DEFAULT COOLDOWN
-                 ================================================== */
-
-              const defaultCooldownSec =
-                Number(
-                  botConfig.commands?.defaultCooldown
-                ) || 0;
-
-
-              if (
-                defaultCooldownSec > 0 &&
-                !isBotOwner(
-                  interaction.user.id
-                )
-              ) {
-
-                const cooldownKey =
-                  `${interaction.user.id}:${interaction.commandName}`;
-
-
-                const expiresAt =
-                  client.cooldowns.get(
-                    cooldownKey
-                  );
-
-
-                if (
-                  expiresAt &&
-                  Date.now() <
-                    expiresAt
-                ) {
-
-                  const remainingSec =
-                    Math.ceil(
-                      (
-                        expiresAt -
-                        Date.now()
-                      ) / 1000
-                    );
-
-
-                  throw createError(
-                    `Default command cooldown active for ${interaction.commandName}`,
-
-                    ErrorTypes.RATE_LIMIT,
-
-                    getBotMessage(
-                      'cooldownActive',
-                      {
-                        time:
-                          `${remainingSec}s`
-                      }
-                    ),
-
-                    withTraceContext(
-                      {
-                        commandName:
-                          interaction.commandName,
-
-                        remainingSec
-                      },
-
-                      interactionTraceContext
-                    )
-                  );
-                }
-
-
-                client.cooldowns.set(
-                  cooldownKey,
-
-                  Date.now() +
-                  defaultCooldownSec *
-                  1000
-                );
-              }
-
-
-              /* ==================================================
-                 ABUSE PROTECTION
-                 ================================================== */
-
-              const abuseProtection =
-                await enforceAbuseProtection(
-                  interaction,
-                  command,
-                  interaction.commandName
-                );
-
-
-              if (
-                !abuseProtection.allowed
-              ) {
-
-                const formattedCooldown =
-                  formatCooldownDuration(
-                    abuseProtection.remainingMs
-                  );
-
-
-                throw createError(
-                  `Risky command cooldown active for ${interaction.commandName}`,
-
-                  ErrorTypes.RATE_LIMIT,
-
-                  `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
-
-                  withTraceContext(
-                    {
-                      commandName:
-                        interaction.commandName,
-
-                      subtype:
-                        'command_cooldown',
-
-                      expected:
-                        true,
-
-                      cooldownMs:
-                        abuseProtection.remainingMs,
-
-                      cooldownWindowMs:
-                        abuseProtection.policy?.windowMs,
-
-                      cooldownMaxAttempts:
-                        abuseProtection.policy?.maxAttempts
-                    },
-
-                    interactionTraceContext
-                  )
-                );
-              }
-
-
-              /* ==================================================
-                 GUILD CONFIG
-                 ================================================== */
-
-              let guildConfig =
-                null;
-
-
-              if (
-                interaction.guild
-              ) {
-
-                guildConfig =
-                  await getGuildConfig(
-                    client,
-                    interaction.guild.id,
-                    interactionTraceContext
-                  );
-
-
-                const accessKey =
-                  resolveSlashAccessKey(
-                    interaction
-                  );
-
-
-                if (
-                  !(
-                    await isCommandEnabled(
-                      client,
-                      interaction.guild.id,
-                      accessKey,
-                      command.category
-                    )
-                  )
-                ) {
-
-                  throw createError(
-                    `Command ${accessKey} is disabled in this guild`,
-
-                    ErrorTypes.CONFIGURATION,
-
-                    'This command has been disabled for this server.',
-
-                    withTraceContext(
-                      {
-                        commandName:
-                          accessKey,
-
-                        guildId:
-                          interaction.guild.id
-                      },
-
-                      interactionTraceContext
-                    )
-                  );
-                }
-              }
-
-
-              /* ==================================================
-                 PERMISSIONS
-                 ================================================== */
-
-              const permissionAllowed =
-                await enforceDefaultCommandPermissions(
-                  interaction,
-                  command,
-                  {
-                    source:
-                      'interactionCreate',
-
-                    guildConfig
-                  }
-                );
-
-
-              if (
-                !permissionAllowed
-              ) {
-                return;
-              }
-
-
-              /* ==================================================
-                 EXECUTE
-                 ================================================== */
-
-              await command.execute(
-                interaction,
-                guildConfig,
-                client
-              );
-
-            } catch (
-              error
+            if (
+              isMaintenanceMode() &&
+              !isBotOwner(
+                interaction.user.id
+              )
             ) {
 
-              await handleInteractionError(
-                interaction,
-                error,
+              throw createError(
+                'Bot is in maintenance mode',
+
+                ErrorTypes.CONFIGURATION,
+
+                getBotMessage(
+                  'maintenanceMode'
+                ),
 
                 withTraceContext(
                   {
-                    type:
-                      'command',
-
                     commandName:
-                      interaction.commandName,
-
-                    subtype:
-                      COMMAND_ERROR_SUBTYPES[
-                        interaction.commandName
-                      ] ||
-                      error?.context?.subtype
+                      interaction.commandName
                   },
 
                   interactionTraceContext
                 )
               );
             }
+
+
+            /* ==================================================
+               CATEGORY
+               ================================================== */
+
+            if (
+              !isCommandCategoryEnabled(
+                command.category
+              )
+            ) {
+
+              throw createError(
+                `Feature disabled for category ${command.category}`,
+
+                ErrorTypes.CONFIGURATION,
+
+                getBotMessage(
+                  'commandDisabled'
+                ),
+
+                withTraceContext(
+                  {
+                    commandName:
+                      interaction.commandName,
+
+                    category:
+                      command.category
+                  },
+
+                  interactionTraceContext
+                )
+              );
+            }
+
+
+            /* ==================================================
+               DEFAULT COOLDOWN
+               ================================================== */
+
+            const defaultCooldownSec =
+              Number(
+                botConfig.commands?.defaultCooldown
+              ) || 0;
+
+
+            if (
+              defaultCooldownSec > 0 &&
+              !isBotOwner(
+                interaction.user.id
+              )
+            ) {
+
+              const cooldownKey =
+                `${interaction.user.id}:${interaction.commandName}`;
+
+
+              if (
+                !client.cooldowns
+              ) {
+                client.cooldowns =
+                  new Map();
+              }
+
+
+              const expiresAt =
+                client.cooldowns.get(
+                  cooldownKey
+                );
+
+
+              if (
+                expiresAt &&
+                Date.now() <
+                expiresAt
+              ) {
+
+                const remainingSec =
+                  Math.ceil(
+                    (
+                      expiresAt -
+                      Date.now()
+                    ) / 1000
+                  );
+
+
+                throw createError(
+                  `Default command cooldown active for ${interaction.commandName}`,
+
+                  ErrorTypes.RATE_LIMIT,
+
+                  getBotMessage(
+                    'cooldownActive',
+                    {
+                      time:
+                        `${remainingSec}s`
+                    }
+                  ),
+
+                  withTraceContext(
+                    {
+                      commandName:
+                        interaction.commandName,
+
+                      remainingSec
+                    },
+
+                    interactionTraceContext
+                  )
+                );
+              }
+
+
+              client.cooldowns.set(
+                cooldownKey,
+
+                Date.now() +
+                defaultCooldownSec *
+                1000
+              );
+            }
+
+
+            /* ==================================================
+               ABUSE PROTECTION
+               ================================================== */
+
+            const abuseProtection =
+              await enforceAbuseProtection(
+                interaction,
+                command,
+                interaction.commandName
+              );
+
+
+            if (
+              !abuseProtection.allowed
+            ) {
+
+              const formattedCooldown =
+                formatCooldownDuration(
+                  abuseProtection.remainingMs
+                );
+
+
+              throw createError(
+                `Risky command cooldown active for ${interaction.commandName}`,
+
+                ErrorTypes.RATE_LIMIT,
+
+                `This command is on cooldown. Please wait ${formattedCooldown} before trying again.`,
+
+                withTraceContext(
+                  {
+                    commandName:
+                      interaction.commandName,
+
+                    subtype:
+                      'command_cooldown',
+
+                    expected:
+                      true,
+
+                    cooldownMs:
+                      abuseProtection.remainingMs,
+
+                    cooldownWindowMs:
+                      abuseProtection.policy?.windowMs,
+
+                    cooldownMaxAttempts:
+                      abuseProtection.policy?.maxAttempts
+                  },
+
+                  interactionTraceContext
+                )
+              );
+            }
+
+
+            /* ==================================================
+               GUILD CONFIG
+               ================================================== */
+
+            let guildConfig =
+              null;
+
+
+            if (
+              interaction.guild
+            ) {
+
+              guildConfig =
+                await getGuildConfig(
+                  client,
+                  interaction.guild.id,
+                  interactionTraceContext
+                );
+
+
+              const accessKey =
+                resolveSlashAccessKey(
+                  interaction
+                );
+
+
+              const commandEnabled =
+                await isCommandEnabled(
+                  client,
+                  interaction.guild.id,
+                  accessKey,
+                  command.category
+                );
+
+
+              if (
+                !commandEnabled
+              ) {
+
+                throw createError(
+                  `Command ${accessKey} is disabled in this guild`,
+
+                  ErrorTypes.CONFIGURATION,
+
+                  'This command has been disabled for this server.',
+
+                  withTraceContext(
+                    {
+                      commandName:
+                        accessKey,
+
+                      guildId:
+                        interaction.guild.id
+                    },
+
+                    interactionTraceContext
+                  )
+                );
+              }
+            }
+
+
+            /* ==================================================
+               PERMISSIONS
+               ================================================== */
+
+            const permissionAllowed =
+              await enforceDefaultCommandPermissions(
+                interaction,
+                command,
+                {
+                  source:
+                    'interactionCreate',
+
+                  guildConfig
+                }
+              );
+
+
+            if (
+              !permissionAllowed
+            ) {
+              return;
+            }
+
+
+            /* ==================================================
+               EXECUTE COMMAND
+               ================================================== */
+
+            logger.info(
+              `[InteractionCreate] Executing /${interaction.commandName}`,
+              {
+                traceId:
+                  interactionTraceContext.traceId,
+
+                guildId:
+                  interaction.guildId,
+
+                userId:
+                  interaction.user?.id
+              }
+            );
+
+
+            if (
+              typeof command.execute !==
+              'function'
+            ) {
+
+              throw new Error(
+                `Command /${interaction.commandName} heeft geen execute() functie.`
+              );
+            }
+
+
+            await command.execute(
+              interaction,
+              guildConfig,
+              client
+            );
+
+
+            logger.info(
+              `[InteractionCreate] /${interaction.commandName} succesvol uitgevoerd`,
+              {
+                traceId:
+                  interactionTraceContext.traceId
+              }
+            );
+
+
+            return;
           }
 
 
@@ -757,11 +846,9 @@ export default {
               );
 
 
-            /*
-            ======================================================
-            APPLY
-            ======================================================
-            */
+            /* ====================================================
+               APPLY
+               ==================================================== */
 
             if (
               interaction.commandName ===
@@ -848,14 +935,14 @@ export default {
                   []
                 );
               }
+
+              return;
             }
 
 
-            /*
-            ======================================================
-            APP-ADMIN
-            ======================================================
-            */
+            /* ====================================================
+               APP-ADMIN
+               ==================================================== */
 
             else if (
               interaction.commandName ===
@@ -941,14 +1028,14 @@ export default {
                   []
                 );
               }
+
+              return;
             }
 
 
-            /*
-            ======================================================
-            REACTROLES
-            ======================================================
-            */
+            /* ====================================================
+               REACTROLES
+               ==================================================== */
 
             else if (
               interaction.commandName ===
@@ -1175,6 +1262,8 @@ export default {
                 );
               }
             }
+
+            return;
           }
 
 
@@ -1578,7 +1667,7 @@ export default {
 
 
               const button =
-                client.buttons.get(
+                client.buttons?.get(
                   buttonType
                 );
 
@@ -1642,7 +1731,7 @@ export default {
 
 
             /* ====================================================
-               NORMALE BUTTON HANDLERS
+               NORMAL BUTTON HANDLERS
                ==================================================== */
 
             const [
@@ -1655,7 +1744,7 @@ export default {
 
 
             const button =
-              client.buttons.get(
+              client.buttons?.get(
                 customId
               );
 
@@ -1748,7 +1837,7 @@ export default {
 
 
             const selectMenu =
-              client.selectMenus.get(
+              client.selectMenus?.get(
                 customId
               );
 
@@ -1759,6 +1848,7 @@ export default {
                 !interaction.customId.includes(
                   ':'
                 ) ||
+
                 isCollectorManagedComponent(
                   customId
                 )
@@ -1827,6 +1917,10 @@ export default {
             interaction.isModalSubmit()
           ) {
 
+            /* ====================================================
+               APPLICATION MODAL
+               ==================================================== */
+
             if (
               interaction.customId.startsWith(
                 'app_modal_'
@@ -1868,6 +1962,10 @@ export default {
             }
 
 
+            /* ====================================================
+               INLINE MODALS
+               ==================================================== */
+
             if (
               interaction.customId.startsWith(
                 'app_review_'
@@ -1906,6 +2004,10 @@ export default {
             }
 
 
+            /* ====================================================
+               NORMAL MODAL HANDLERS
+               ==================================================== */
+
             const [
               customId,
               ...args
@@ -1916,7 +2018,7 @@ export default {
 
 
             const modal =
-              client.modals.get(
+              client.modals?.get(
                 customId
               );
 
@@ -1992,7 +2094,6 @@ export default {
 
           logger.error(
             'Unhandled error in interactionCreate:',
-
             {
               event:
                 'interaction.unhandled_error',
@@ -2012,7 +2113,10 @@ export default {
                 interaction.guildId,
 
               userId:
-                interaction.user?.id
+                interaction.user?.id,
+
+              commandName:
+                interaction.commandName
             }
           );
 
@@ -2048,7 +2152,6 @@ export default {
 
             logger.error(
               'Failed to send fallback error response:',
-
               {
                 event:
                   'interaction.error_response_failed',
