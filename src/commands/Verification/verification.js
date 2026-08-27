@@ -23,6 +23,10 @@ export default {
         .setDescription('Beheer de server verificatie')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
 
+        // ============================================================
+        // SETUP
+        // ============================================================
+
         .addSubcommand(subcommand =>
             subcommand
                 .setName('setup')
@@ -31,18 +35,25 @@ export default {
                 .addChannelOption(option =>
                     option
                         .setName('kanaal')
-                        .setDescription('Het kanaal waar de regels/verificatie komt')
-                        .addChannelTypes(ChannelType.GuildText)
+                        .setDescription('Het kanaal waar de verificatie komt')
+                        .addChannelTypes(
+                            ChannelType.GuildText,
+                            ChannelType.GuildAnnouncement
+                        )
                         .setRequired(true)
                 )
 
                 .addRoleOption(option =>
                     option
                         .setName('rol')
-                        .setDescription('De rol die iemand krijgt na het accepteren van de regels')
+                        .setDescription('De rol die iemand krijgt na verificatie')
                         .setRequired(true)
                 )
         )
+
+        // ============================================================
+        // DISABLE
+        // ============================================================
 
         .addSubcommand(subcommand =>
             subcommand
@@ -54,12 +65,20 @@ export default {
         const subcommand = interaction.options.getSubcommand();
         const guild = interaction.guild;
 
+        // ============================================================
+        // SERVER CHECK
+        // ============================================================
+
         if (!guild) {
             return interaction.reply({
                 content: '❌ Dit commando kan alleen in een server worden gebruikt.',
                 flags: MessageFlags.Ephemeral
             });
         }
+
+        // ============================================================
+        // PERMISSION CHECK
+        // ============================================================
 
         if (
             !interaction.memberPermissions?.has(
@@ -77,15 +96,58 @@ export default {
         // ============================================================
 
         if (subcommand === 'setup') {
-            const channel = interaction.options.getChannel('kanaal');
+            /*
+             * We proberen eerst "kanaal".
+             *
+             * De fallback naar "channel" is expres toegevoegd.
+             * Als Discord nog een oudere versie van het slash command
+             * gebruikt waarin de optie "channel" heette, werkt het
+             * daardoor ook.
+             */
+            const channel =
+                interaction.options.getChannel('kanaal') ??
+                interaction.options.getChannel('channel');
+
             const role = interaction.options.getRole('rol');
 
+            // ========================================================
+            // CHANNEL CHECK
+            // ========================================================
+
             if (!channel) {
+                logger.error('[Verification] Geen kanaal ontvangen', {
+                    guildId: guild.id,
+                    userId: interaction.user.id,
+                    commandOptions: interaction.options.data
+                });
+
                 return interaction.reply({
-                    content: '❌ Geen geldig kanaal geselecteerd.',
+                    content:
+                        '❌ Geen geldig kanaal geselecteerd.\n\n' +
+                        'Probeer het opnieuw en selecteer een tekstkanaal.',
                     flags: MessageFlags.Ephemeral
                 });
             }
+
+            // ========================================================
+            // CHANNEL TYPE CHECK
+            // ========================================================
+
+            if (
+                channel.type !== ChannelType.GuildText &&
+                channel.type !== ChannelType.GuildAnnouncement
+            ) {
+                return interaction.reply({
+                    content:
+                        '❌ Dit is geen geldig tekstkanaal.\n\n' +
+                        'Selecteer een normaal tekstkanaal.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // ========================================================
+            // ROLE CHECK
+            // ========================================================
 
             if (!role) {
                 return interaction.reply({
@@ -94,30 +156,47 @@ export default {
                 });
             }
 
-            // @everyone mag niet gebruikt worden
+            // ========================================================
+            // EVERYONE CHECK
+            // ========================================================
+
             if (role.id === guild.id) {
                 return interaction.reply({
-                    content: '❌ Je kunt de @everyone rol niet gebruiken.',
+                    content:
+                        '❌ Je kunt de **@everyone** rol niet gebruiken.',
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            // Managed/integratie-rollen mogen niet gebruikt worden
+            // ========================================================
+            // MANAGED ROLE CHECK
+            // ========================================================
+
             if (role.managed) {
                 return interaction.reply({
-                    content: '❌ Deze rol wordt beheerd door een integratie en kan niet worden gebruikt.',
+                    content:
+                        '❌ Deze rol wordt beheerd door een integratie en kan niet worden gebruikt.',
                     flags: MessageFlags.Ephemeral
                 });
             }
+
+            // ========================================================
+            // BOT MEMBER
+            // ========================================================
 
             const botMember = guild.members.me;
 
             if (!botMember) {
                 return interaction.reply({
-                    content: '❌ Ik kan mijn serverpermissies momenteel niet controleren.',
+                    content:
+                        '❌ Ik kan mijn serverpermissies momenteel niet controleren.',
                     flags: MessageFlags.Ephemeral
                 });
             }
+
+            // ========================================================
+            // MANAGE ROLES
+            // ========================================================
 
             if (
                 !botMember.permissions.has(
@@ -125,13 +204,20 @@ export default {
                 )
             ) {
                 return interaction.reply({
-                    content: '❌ Ik heb de **Rollen beheren** permissie nodig.',
+                    content:
+                        '❌ Ik heb de **Rollen beheren** permissie nodig.',
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            // Bot moet boven de verificatierol staan
-            if (role.position >= botMember.roles.highest.position) {
+            // ========================================================
+            // BOT ROLE HIERARCHY
+            // ========================================================
+
+            if (
+                role.position >=
+                botMember.roles.highest.position
+            ) {
                 return interaction.reply({
                     content:
                         '❌ Mijn hoogste rol moet **boven de verificatierol** staan.',
@@ -139,11 +225,65 @@ export default {
                 });
             }
 
+            // ========================================================
+            // CHANNEL PERMISSIONS
+            // ========================================================
+
+            const channelPermissions =
+                channel.permissionsFor(botMember);
+
+            if (
+                !channelPermissions?.has(
+                    PermissionFlagsBits.ViewChannel
+                )
+            ) {
+                return interaction.reply({
+                    content:
+                        `❌ Ik kan het kanaal ${channel} niet bekijken.\n\n` +
+                        'Geef mij de **Kanaal bekijken** permissie.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (
+                !channelPermissions?.has(
+                    PermissionFlagsBits.SendMessages
+                )
+            ) {
+                return interaction.reply({
+                    content:
+                        `❌ Ik kan geen berichten sturen in ${channel}.\n\n` +
+                        'Geef mij de **Berichten sturen** permissie.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (
+                !channelPermissions?.has(
+                    PermissionFlagsBits.EmbedLinks
+                )
+            ) {
+                return interaction.reply({
+                    content:
+                        `❌ Ik kan geen embeds sturen in ${channel}.\n\n` +
+                        'Geef mij de **Links insluiten** permissie.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // ========================================================
+            // DEFER
+            // ========================================================
+
             await interaction.deferReply({
                 flags: MessageFlags.Ephemeral
             });
 
             try {
+                // ====================================================
+                // LOAD CONFIG
+                // ====================================================
+
                 const guildConfig = await getGuildConfig(
                     client,
                     guild.id
@@ -153,19 +293,64 @@ export default {
                     guildConfig.verification = {};
                 }
 
+                /*
+                 * Bewaar het oude message ID voordat we het overschrijven.
+                 */
+                const oldMessageId =
+                    guildConfig.verification.messageId;
+
+                const oldChannelId =
+                    guildConfig.verification.channelId;
+
+                // ====================================================
+                // DELETE OLD VERIFICATION MESSAGE
+                // ====================================================
+
+                if (oldMessageId && oldChannelId) {
+                    try {
+                        const oldChannel =
+                            guild.channels.cache.get(oldChannelId);
+
+                        if (oldChannel) {
+                            const oldMessage =
+                                await oldChannel.messages
+                                    .fetch(oldMessageId)
+                                    .catch(() => null);
+
+                            if (oldMessage) {
+                                await oldMessage
+                                    .delete()
+                                    .catch(() => {});
+                            }
+                        }
+                    } catch (error) {
+                        logger.warn(
+                            '[Verification] Kon oud verificatiebericht niet verwijderen',
+                            {
+                                error: error.message
+                            }
+                        );
+                    }
+                }
+
+                // ====================================================
+                // SAVE INITIAL CONFIG
+                // ====================================================
+
                 guildConfig.verification.enabled = true;
 
-                guildConfig.verification.channelId = channel.id;
+                guildConfig.verification.channelId =
+                    channel.id;
 
-                guildConfig.verification.roleId = role.id;
+                guildConfig.verification.roleId =
+                    role.id;
 
-                // Heel belangrijk:
-                // AutoVerify bij join uitschakelen.
+                guildConfig.verification.messageId = null;
+
+                // AutoVerify bewust uit
                 guildConfig.verification.autoVerify = {
                     enabled: false
                 };
-
-                guildConfig.verification.messageId = null;
 
                 await setGuildConfig(
                     client,
@@ -174,23 +359,7 @@ export default {
                 );
 
                 // ====================================================
-                // OUD VERIFICATIEBERICHT ZOEKEN
-                // ====================================================
-
-                let oldMessage = null;
-
-                if (guildConfig.verification.messageId) {
-                    oldMessage = await channel.messages
-                        .fetch(guildConfig.verification.messageId)
-                        .catch(() => null);
-                }
-
-                if (oldMessage) {
-                    await oldMessage.delete().catch(() => {});
-                }
-
-                // ====================================================
-                // VERIFICATIE EMBED
+                // VERIFICATION EMBED
                 // ====================================================
 
                 const embed = new EmbedBuilder()
@@ -221,12 +390,25 @@ export default {
                     .setTimestamp();
 
                 // ====================================================
-                // VERIFICATIE BUTTON
+                // VERIFICATION BUTTON
                 // ====================================================
+
+                /*
+                 * BELANGRIJK:
+                 *
+                 * De button-handler die je eerder stuurde heeft:
+                 *
+                 * customId: "verify_user"
+                 *
+                 * Daarom moet de button hiermee beginnen.
+                 *
+                 * De guild ID wordt erachter gezet zodat de button
+                 * uniek blijft.
+                 */
 
                 const button = new ButtonBuilder()
                     .setCustomId(
-                        `verification_accept_${guild.id}`
+                        `verify_user:${guild.id}`
                     )
                     .setLabel('Regels accepteren')
                     .setEmoji('✅')
@@ -236,34 +418,40 @@ export default {
                     .addComponents(button);
 
                 // ====================================================
-                // BERICHT PLAATSEN
+                // SEND VERIFICATION MESSAGE
                 // ====================================================
 
-                const verificationMessage = await channel.send({
-                    embeds: [embed],
-                    components: [row]
-                });
+                const verificationMessage =
+                    await channel.send({
+                        embeds: [embed],
+                        components: [row]
+                    });
 
                 // ====================================================
-                // MESSAGE ID OPSLAAN
+                // SAVE MESSAGE ID
                 // ====================================================
 
-                const updatedConfig = await getGuildConfig(
-                    client,
-                    guild.id
-                );
+                const updatedConfig =
+                    await getGuildConfig(
+                        client,
+                        guild.id
+                    );
 
                 if (!updatedConfig.verification) {
                     updatedConfig.verification = {};
                 }
 
                 updatedConfig.verification.enabled = true;
-                updatedConfig.verification.channelId = channel.id;
-                updatedConfig.verification.roleId = role.id;
+
+                updatedConfig.verification.channelId =
+                    channel.id;
+
+                updatedConfig.verification.roleId =
+                    role.id;
+
                 updatedConfig.verification.messageId =
                     verificationMessage.id;
 
-                // AutoVerify bewust UIT
                 updatedConfig.verification.autoVerify = {
                     enabled: false
                 };
@@ -274,21 +462,41 @@ export default {
                     updatedConfig
                 );
 
+                // ====================================================
+                // LOG
+                // ====================================================
+
                 logger.info(
-                    `[Verification] Verification setup completed in ${guild.name} (${guild.id})`
+                    '[Verification] Verification setup completed',
+                    {
+                        guildId: guild.id,
+                        guildName: guild.name,
+                        channelId: channel.id,
+                        roleId: role.id,
+                        messageId: verificationMessage.id,
+                        userId: interaction.user.id
+                    }
                 );
+
+                // ====================================================
+                // SUCCESS
+                // ====================================================
 
                 await interaction.editReply({
                     embeds: [
                         new EmbedBuilder()
                             .setColor(getColor('success'))
-                            .setTitle('✅ Verificatie ingesteld')
+                            .setTitle(
+                                '✅ Verificatie ingesteld'
+                            )
                             .setDescription(
                                 [
-                                    `Het verificatiesysteem is succesvol ingesteld.`,
+                                    'Het verificatiesysteem is succesvol ingesteld.',
                                     '',
                                     `**Kanaal:** ${channel}`,
                                     `**Verificatierol:** ${role}`,
+                                    '',
+                                    `**Bericht:** [Klik hier om het verificatiebericht te bekijken](${verificationMessage.url})`,
                                     '',
                                     'Nieuwe leden kunnen de regels accepteren met de knop in het verificatiebericht.',
                                     '',
@@ -300,14 +508,23 @@ export default {
 
             } catch (error) {
                 logger.error(
-                    '[Verification] Setup error:',
-                    error
+                    '[Verification] Setup error',
+                    {
+                        error: error.message,
+                        stack: error.stack,
+                        guildId: guild.id,
+                        channelId: channel?.id,
+                        roleId: role?.id
+                    }
                 );
 
-                await interaction.editReply({
-                    content:
-                        '❌ Er ging iets mis bij het instellen van de verificatie.'
-                });
+                if (interaction.deferred) {
+                    await interaction.editReply({
+                        content:
+                            '❌ Er ging iets mis bij het instellen van de verificatie.\n\n' +
+                            `\`${error.message}\``
+                    }).catch(() => {});
+                }
             }
 
             return;
@@ -323,10 +540,11 @@ export default {
             });
 
             try {
-                const guildConfig = await getGuildConfig(
-                    client,
-                    guild.id
-                );
+                const guildConfig =
+                    await getGuildConfig(
+                        client,
+                        guild.id
+                    );
 
                 if (!guildConfig.verification) {
                     guildConfig.verification = {};
@@ -348,7 +566,9 @@ export default {
                     embeds: [
                         new EmbedBuilder()
                             .setColor(getColor('success'))
-                            .setTitle('✅ Verificatie uitgeschakeld')
+                            .setTitle(
+                                '✅ Verificatie uitgeschakeld'
+                            )
                             .setDescription(
                                 'Het verificatiesysteem is uitgeschakeld.'
                             )
@@ -356,19 +576,27 @@ export default {
                 });
 
                 logger.info(
-                    `[Verification] Verification disabled in ${guild.name} (${guild.id})`
+                    '[Verification] Verification disabled',
+                    {
+                        guildId: guild.id,
+                        guildName: guild.name
+                    }
                 );
 
             } catch (error) {
                 logger.error(
-                    '[Verification] Disable error:',
-                    error
+                    '[Verification] Disable error',
+                    {
+                        error: error.message,
+                        stack: error.stack,
+                        guildId: guild.id
+                    }
                 );
 
                 await interaction.editReply({
                     content:
                         '❌ Er ging iets mis bij het uitschakelen van de verificatie.'
-                });
+                }).catch(() => {});
             }
         }
     }
